@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model applications {
+  id            Int      @id @default(autoincrement())
+  applicationId String   @unique
+  studentEmail  String
+  studentName   String
+  servicePrefix String
+  status        String   @default("submitted")
+  notes         String?
+  createdAt     DateTime @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime @default(now()) @db.Timestamp(6)
+  userId        String
+}
+
+model email_notifications {
+  id            Int       @id @default(autoincrement())
+  applicationId Int
+  studentEmail  String
+  subject       String
+  status        String    @default("pending")
+  error         String?
+  createdAt     DateTime  @default(now()) @db.Timestamp(6)
+  sentAt        DateTime? @db.Timestamp(6)
+}
+
+model service_prefixes {
+  id          Int      @id @default(autoincrement())
+  prefix      String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+}
+
+model status_history {
+  id             Int      @id @default(autoincrement())
+  applicationId  Int
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  changedBy      String
+  createdAt      DateTime @default(now())
+}
+
+model Order {
+  id                  String   @id @default(cuid())
+  orderNumber         String   @unique
+  customerName        String
+  customerPhone       String
+  whatsappCountryCode String?
+  whatsappPhone       String?
+  city                String
+  address             String
+  notes               String?
+  total               Float
+  status              String   @default("جديد")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+
+  name     String
+  price    Float
+  quantity Int
+  image    String?
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}
+
+model StoreSettings {
+  id                  Int      @id @default(1)
+  storeName           String   @default("COMFORT KEEPERS")
+  storeDescription    String   @default("متجر العطور والجمال")
+  phone               String   @default("")
+  whatsapp            String   @default("")
+  address             String   @default("")
+  shippingCost        Float    @default(50)
+  freeShippingMinimum Float    @default(500)
+  currency            String   @default("جنيه")
+  instagram           String   @default("")
+  facebook            String   @default("")
+  acceptOrders        Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String? @unique
+  category    String
+  price       Float
+  stock       Int     @default(0)
+  image       String?
+  description String?
+  status      String  @default("available")
+
+  isAvailable  Boolean @default(true)
+  isBestSeller Boolean @default(false)
+  isTrending   Boolean @default(false)
+  isNew        Boolean @default(false)
+
+  salesCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
