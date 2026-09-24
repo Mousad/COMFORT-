@@ -143,10 +143,11 @@ export function Header() {
 
             {/* Cart */}
             <Link
-              href="/cart"
-              aria-label="السلة"
-              className="relative transition-opacity hover:opacity-50"
-            >
+  href="/cart"
+  aria-label="السلة"
+  data-cart-target
+  className="relative transition-opacity hover:opacity-50"
+>
               <ShoppingBag
                 size={20}
                 strokeWidth={1.4}
@@ -255,11 +256,12 @@ export function Header() {
       >
         <div className="flex h-[50px] items-center rounded-full bg-white">
           {/* CART */}
-          <Link
-            href="/cart"
-            aria-label="السلة"
-            className="relative flex h-full w-full items-center justify-center"
-          >
+         <Link
+  href="/cart"
+  aria-label="السلة"
+  data-cart-target
+  className="relative flex h-full w-full items-center justify-center"
+>
             <ShoppingBag
               size={21}
               strokeWidth={1.5}
