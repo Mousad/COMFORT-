@@ -50,37 +50,33 @@ model status_history {
 }
 
 model Order {
-  id                  String   @id @default(cuid())
-  orderNumber         String   @unique
+  id                  String      @id @default(cuid())
+  orderNumber         String      @unique
   customerName        String
   customerPhone       String
-  whatsappCountryCode String?
-  whatsappPhone       String?
   city                String
   address             String
   notes               String?
   total               Float
-  status              String   @default("جديد")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  items OrderItem[]
+  status              String      @default("جديد")
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  whatsappCountryCode String?
+  whatsappPhone       String?
+  items               OrderItem[]
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   orderId   String
   productId String?
-
-  name     String
-  price    Float
-  quantity Int
-  image    String?
-
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-
+  name      String
+  price     Float
+  quantity  Int
+  image     String?
   createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
 }
 
 model StoreSettings {
@@ -101,27 +97,23 @@ model StoreSettings {
 }
 
 model Product {
-  id          String  @id @default(cuid())
-  name        String
-  slug        String? @unique
-  category    String
-  price       Float
-  stock       Int     @default(0)
-  image       String?
-  description String?
-  status      String  @default("available")
-
-  isAvailable  Boolean @default(true)
-  isBestSeller Boolean @default(false)
-  isTrending   Boolean @default(false)
-  isNew        Boolean @default(false)
-
-  salesCount Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  orderItems OrderItem[]
+  id           String      @id @default(cuid())
+  name         String
+  category     String
+  price        Float
+  stock        Int         @default(0)
+  image        String?
+  description  String?
+  status       String      @default("available")
+  isAvailable  Boolean     @default(true)
+  isBestSeller Boolean     @default(false)
+  isTrending   Boolean     @default(false)
+  isNew        Boolean     @default(false)
+  salesCount   Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  slug         String?     @unique
+  orderItems   OrderItem[]
 }
 
 model Category {
@@ -133,4 +125,14 @@ model Category {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

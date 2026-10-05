@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET() {
   try {
@@ -26,7 +27,8 @@ export async function GET() {
     const categoriesWithCount = categories.map(
       (category) => ({
         ...category,
-        productsCount: countMap.get(category.name) || 0,
+        productsCount:
+          countMap.get(category.name) || 0,
       })
     );
 
@@ -58,6 +60,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    // 🔐 إضافة التصنيفات للـ Admin فقط
+    await requireAdmin();
+
     const body = await request.json();
 
     const name =
@@ -177,10 +182,10 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء إضافة التصنيف",
+        message: "غير مصرح لك بإضافة التصنيفات",
       },
       {
-        status: 500,
+        status: 401,
       }
     );
   }

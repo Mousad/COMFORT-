@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 const DEFAULT_SETTINGS = {
   id: 1,
@@ -56,10 +57,13 @@ export async function GET() {
 
 /**
  * PUT
- * تحديث إعدادات المتجر
+ * تحديث إعدادات المتجر - Admin فقط
  */
 export async function PUT(request: Request) {
   try {
+    // 🔐 حماية تعديل إعدادات المتجر
+    await requireAdmin();
+
     const body = await request.json();
 
     const storeName =

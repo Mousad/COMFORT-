@@ -4,9 +4,11 @@ import {
   AnnouncementBar,
   BrandStory,
   CategoriesSection,
+  ContactSection,
   EditorialBanner,
   Hero,
   HomeProductSections,
+  InstagramReviews,
 } from "@/components/home/HomeSections";
 
 import BestSellers from "@/components/home/BestSellers";
@@ -19,90 +21,56 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [categories, products] = await Promise.all([
-    getCategories(),
-    getProducts(),
-  ]);
+  let categories = [];
+  let products = [];
+
+  try {
+    [categories, products] = await Promise.all([
+      getCategories(),
+      getProducts(),
+    ]);
+  } catch (error) {
+    console.error("HOME DATA ERROR:", error);
+  }
 
   return (
     <>
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
       <Header />
 
       <main>
-
-        {/* ===================================================
-            HERO
-        =================================================== */}
-
+        {/* Hero */}
         <Hero />
 
-        {/* ===================================================
-            ANNOUNCEMENT BAR
-        =================================================== */}
-
+        {/* Announcement */}
         <AnnouncementBar />
 
-        {/* ===================================================
-            CATEGORIES
-        =================================================== */}
+        {/* Categories */}
+        <CategoriesSection categories={categories} />
 
-        <CategoriesSection
-          categories={categories}
-        />
-
-       
-
-        {/* ===================================================
-            ALL PRODUCTS
-            - جميع المنتجات
-            - الفلاتر
-            - الترقيم
-        =================================================== */}
-
+        {/* Products */}
         <HomeProductSections
           best={[]}
           products={products}
           categories={categories}
         />
 
+        {/* Best Sellers */}
+        <BestSellers products={products} />
 
-         {/* ===================================================
-            BEST SELLERS
-            - منتجات مختلطة
-            - نسائي
-            - رجالي
-            - Skin Care
-            - 50 ml
-            - مرتبة حسب المبيعات
-        =================================================== */}
-
-        <BestSellers
-          products={products}
-        />
-
-        {/* ===================================================
-            EDITORIAL BANNER
-        =================================================== */}
-
+        {/* Editorial Banner */}
         <EditorialBanner />
 
-        {/* ===================================================
-            BRAND STORY
-        =================================================== */}
-
+        {/* Brand Story */}
         <BrandStory />
 
-      </main>
+        {/* Instagram Reviews */}
+        <InstagramReviews />
 
-      {/* =====================================================
-          FOOTER
-      ===================================================== */}
+        {/* Contact */}
+        <ContactSection />
+      </main>
 
       <Footer />
     </>
   );
-} 
+}

@@ -1,6 +1,6 @@
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 const allowedStatuses = [
   "جديد",
@@ -13,13 +13,16 @@ const allowedStatuses = [
 
 /**
  * GET
- * جلب تفاصيل طلب واحد
+ * جلب تفاصيل طلب واحد - Admin فقط
  */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔐 حماية بيانات الطلب
+    await requireAdmin();
+
     const { id } = await params;
 
     const order = await prisma.order.findUnique({
@@ -51,22 +54,25 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء جلب الطلب",
+        message: "غير مصرح لك بالوصول إلى هذا الطلب",
       },
-      { status: 500 }
+      { status: 401 }
     );
   }
 }
 
 /**
  * PATCH
- * تغيير حالة الطلب
+ * تغيير حالة الطلب - Admin فقط
  */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔐 حماية تغيير حالة الطلب
+    await requireAdmin();
+
     const { id } = await params;
 
     const body = await request.json();
@@ -122,9 +128,9 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء تحديث حالة الطلب",
+        message: "غير مصرح لك بتعديل حالة الطلب",
       },
-      { status: 500 }
+      { status: 401 }
     );
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSlug } from "@/lib/slug";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET() {
   try {
@@ -31,6 +32,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    // 🔐 إضافة المنتجات للـ Admin فقط
+    await requireAdmin();
+
     const body = await request.json();
 
     const name =
@@ -112,15 +116,17 @@ export async function POST(request: Request) {
     }
 
     let slug =
-      typeof body.slug === "string" && body.slug.trim()
+      typeof body.slug === "string" &&
+      body.slug.trim()
         ? body.slug.trim()
         : createSlug(name);
 
-    const existingSlug = await prisma.product.findUnique({
-      where: {
-        slug,
-      },
-    });
+    const existingSlug =
+      await prisma.product.findUnique({
+        where: {
+          slug,
+        },
+      });
 
     if (existingSlug) {
       slug = `${slug}-${Date.now()}`;
@@ -133,23 +139,24 @@ export async function POST(request: Request) {
         ? "low"
         : "available";
 
-    const product = await prisma.product.create({
-      data: {
-        name,
-        slug,
-        category,
-        price,
-        stock,
-        image: image || null,
-        description: description || null,
-        status,
-        isAvailable: stock > 0,
-        isBestSeller,
-        isTrending,
-        isNew,
-        salesCount: 0,
-      },
-    });
+    const product =
+      await prisma.product.create({
+        data: {
+          name,
+          slug,
+          category,
+          price,
+          stock,
+          image: image || null,
+          description: description || null,
+          status,
+          isAvailable: stock > 0,
+          isBestSeller,
+          isTrending,
+          isNew,
+          salesCount: 0,
+        },
+      });
 
     return NextResponse.json(
       {

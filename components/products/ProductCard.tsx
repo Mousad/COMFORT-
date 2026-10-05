@@ -8,26 +8,28 @@ import {
 } from "lucide-react";
 import type { MouseEvent } from "react";
 
-import { Product } from "@/types/product";
+import type { Product } from "@/types/product";
 import { useCart } from "@/components/cart/CartProvider";
 import { useWishlist } from "@/components/wishlist/WishlistProvider";
 
 function getProductType(product: Product) {
-  const category = String(product.category || "").toLowerCase();
+  const category = String(
+    product.category || ""
+  ).toLowerCase();
 
   if (
     category.includes("women") ||
     category.includes("حريمي") ||
-    category.includes("women")
+    category.includes("نسائي")
   ) {
-    return "women";
+    return "حريمي";
   }
 
   if (
     category.includes("men") ||
     category.includes("رجالي")
   ) {
-    return "men";
+    return "رجالي";
   }
 
   if (
@@ -42,7 +44,7 @@ function getProductType(product: Product) {
     category.includes("skin") ||
     category.includes("عناية")
   ) {
-    return " skin";
+    return "Skin Care";
   }
 
   if (
@@ -69,9 +71,14 @@ export function ProductCard({
   product: Product;
 }) {
   const { addToCart } = useCart();
-  const { toggleWishlist, isInWishlist } = useWishlist();
+  const {
+    toggleWishlist,
+    isInWishlist,
+  } = useWishlist();
 
-  const isFavorite = isInWishlist(product.id);
+  const isFavorite = isInWishlist(
+    product.id
+  );
 
   const handleAddToCart = (
     e: MouseEvent<HTMLButtonElement>
@@ -79,39 +86,37 @@ export function ProductCard({
     e.preventDefault();
     e.stopPropagation();
 
-    const article = e.currentTarget.closest("article");
+    const article =
+      e.currentTarget.closest("article");
 
-    const image = article?.querySelector(
-      "[data-product-image]"
-    ) as HTMLImageElement | null;
+    const image =
+      article?.querySelector(
+        "[data-product-image]"
+      ) as HTMLImageElement | null;
 
     addToCart(product);
 
     if (!image) return;
 
-    /*
-     * نحدد السلة الظاهرة:
-     * على الموبايل نستخدم Bottom Navbar
-     * وعلى الديسكتوب نستخدم سلة الـHeader
-     */
     const cartTargets = Array.from(
       document.querySelectorAll(
         "[data-cart-target]"
       )
     ) as HTMLElement[];
 
-    const visibleCart = cartTargets.find(
-      (element) => {
-        const rect = element.getBoundingClientRect();
+    const visibleCart =
+      cartTargets.find((element) => {
+        const rect =
+          element.getBoundingClientRect();
 
         return (
           rect.width > 0 &&
           rect.height > 0 &&
-          getComputedStyle(element).visibility !==
-            "hidden"
+          getComputedStyle(
+            element
+          ).visibility !== "hidden"
         );
-      }
-    );
+      });
 
     if (!visibleCart) return;
 
@@ -121,9 +126,6 @@ export function ProductCard({
     const cartRect =
       visibleCart.getBoundingClientRect();
 
-    /*
-     * نقطة البداية
-     */
     const startX =
       imageRect.left +
       imageRect.width / 2;
@@ -132,9 +134,6 @@ export function ProductCard({
       imageRect.top +
       imageRect.height / 2;
 
-    /*
-     * نقطة النهاية
-     */
     const endX =
       cartRect.left +
       cartRect.width / 2;
@@ -146,29 +145,16 @@ export function ProductCard({
     const deltaX = endX - startX;
     const deltaY = endY - startY;
 
-    /*
-     * معرفة هل الجهاز موبايل
-     */
     const isMobile =
       window.innerWidth < 640;
 
-    /*
-     * نسخة من نفس صورة المنتج
-     */
-    const flyingImage = image.cloneNode(
-      true
-    ) as HTMLImageElement;
+    const flyingImage =
+      image.cloneNode(true) as HTMLImageElement;
 
-    /*
-     * نحذف الـattribute من النسخة
-     */
     flyingImage.removeAttribute(
       "data-product-image"
     );
 
-    /*
-     * حجم صورة الحركة
-     */
     const flyingSize = Math.min(
       imageRect.width * 1.4,
       isMobile ? 115 : 105
@@ -200,12 +186,6 @@ export function ProductCard({
       flyingImage
     );
 
-    /*
-     * حركة المنتج
-     *
-     * الموبايل: 1800ms
-     * الكمبيوتر: 1100ms
-     */
     const animation =
       flyingImage.animate(
         [
@@ -215,28 +195,24 @@ export function ProductCard({
             opacity: 1,
             offset: 0,
           },
-
           {
             transform:
               `translate(-50%, -50%) translate(${deltaX * 0.18}px, ${deltaY * 0.05 - 90}px) scale(0.95) rotate(-5deg)`,
             opacity: 1,
             offset: 0.22,
           },
-
           {
             transform:
               `translate(-50%, -50%) translate(${deltaX * 0.42}px, ${deltaY * 0.18 - 70}px) scale(0.78) rotate(-9deg)`,
             opacity: 0.98,
             offset: 0.45,
           },
-
           {
             transform:
               `translate(-50%, -50%) translate(${deltaX * 0.72}px, ${deltaY * 0.58}px) scale(0.5) rotate(5deg)`,
             opacity: 0.9,
             offset: 0.72,
           },
-
           {
             transform:
               `translate(-50%, -50%) translate(${deltaX}px, ${deltaY}px) scale(0.08) rotate(12deg)`,
@@ -245,7 +221,9 @@ export function ProductCard({
           },
         ],
         {
-          duration: isMobile ? 2200 : 1100,
+          duration: isMobile
+            ? 2200
+            : 1100,
           easing:
             "cubic-bezier(0.22, 1, 0.36, 1)",
           fill: "forwards",
@@ -256,30 +234,22 @@ export function ProductCard({
       .then(() => {
         flyingImage.remove();
 
-        /*
-         * Bounce للسلة بعد وصول المنتج
-         */
         visibleCart.animate(
           [
             {
-              transform:
-                "scale(1)",
+              transform: "scale(1)",
             },
             {
-              transform:
-                "scale(1.14)",
+              transform: "scale(1.14)",
             },
             {
-              transform:
-                "scale(0.94)",
+              transform: "scale(0.94)",
             },
             {
-              transform:
-                "scale(1.06)",
+              transform: "scale(1.06)",
             },
             {
-              transform:
-                "scale(1)",
+              transform: "scale(1)",
             },
           ],
           {
@@ -303,7 +273,7 @@ export function ProductCard({
   };
 
   return (
-    <article className="min-w-[180px] flex-1 sm:min-w-[200px]">
+    <article className="w-[170px] min-w-[180px] shrink-0 sm:w-auto sm:min-w-[200px]">
       <Link
         href={`/products/${product.slug}`}
         className="
@@ -313,7 +283,6 @@ export function ProductCard({
           bg-white
         "
       >
-        {/* Image */}
         <div
           className="
             relative
@@ -344,7 +313,6 @@ export function ProductCard({
             "
           />
 
-          {/* Wishlist */}
           <button
             type="button"
             onClick={handleWishlist}
@@ -386,10 +354,8 @@ export function ProductCard({
           </button>
         </div>
 
-        {/* Product Info */}
-        <div className="px-1 pb-1 pt-1 sm:px-3 sm:pb-4 sm:pt-4">
-          {/* Type + Name */}
-          <div className="flex items-center justify-between gap-3">
+        <div className="px-1 pb-4 pt-1 sm:px-3 sm:pb-4 sm:pt-4">
+          <div className="flex items-center justify-between gap-2">
             <span className="shrink-0 text-[10px] text-black/45 sm:text-xs">
               {getProductType(product)}
             </span>
@@ -409,14 +375,12 @@ export function ProductCard({
             </h3>
           </div>
 
-          {/* Size */}
           {product.size && (
             <p className="mt-1 text-[10px] text-black/40 sm:text-xs">
               {product.size}
             </p>
           )}
 
-          {/* Price + Cart */}
           <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <span className="whitespace-nowrap text-sm font-medium text-[#171717] sm:text-base">
@@ -440,12 +404,9 @@ export function ProductCard({
               )}
             </div>
 
-            {/* Cart */}
             <button
               type="button"
-              onClick={
-                handleAddToCart
-              }
+              onClick={handleAddToCart}
               disabled={
                 product.isAvailable ===
                 false
@@ -458,7 +419,7 @@ export function ProductCard({
                 items-center
                 justify-center
                 rounded-[5px]
-                bg-[#171717]
+                bg-[#b89b72]
                 text-white
                 transition
                 hover:bg-[#b89b72]
@@ -502,7 +463,6 @@ export function ProductSection({
         md:py-20
       "
     >
-      {/* Section Header */}
       <div className="mb-7 flex items-end justify-between">
         <div>
           <p className="mb-2 text-[10px] uppercase tracking-[0.28em] text-black/45">
@@ -537,7 +497,6 @@ export function ProductSection({
         </Link>
       </div>
 
-      {/* Products */}
       <div
         className="
           flex

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 type RouteContext = {
   params: Promise<{
@@ -8,6 +9,7 @@ type RouteContext = {
 };
 
 // GET /api/categories/[id]
+// متاح للعامة
 export async function GET(
   _request: Request,
   context: RouteContext
@@ -56,11 +58,14 @@ export async function GET(
 }
 
 // PATCH /api/categories/[id]
+// 🔐 Admin فقط
 export async function PATCH(
   request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAdmin();
+
     const { id } = await context.params;
     const body = await request.json();
 
@@ -235,11 +240,14 @@ export async function PATCH(
 }
 
 // DELETE /api/categories/[id]
+// 🔐 Admin فقط
 export async function DELETE(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAdmin();
+
     const { id } = await context.params;
 
     const category = await prisma.category.findUnique({

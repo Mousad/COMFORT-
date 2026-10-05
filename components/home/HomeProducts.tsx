@@ -91,10 +91,10 @@ export default function HomeProducts({
     <section
       id="home-products"
       dir="rtl"
-      className="mx-auto max-w-[1400px] px-4 py-14 md:px-8 md:py-20"
+      className="mx-auto max-w-[1400px] px-1 py-10 md:px-8 md:py-20"
     >
       {/* HEADER */}
-      <div className="mb-8 text-center">
+      <div className="mb-4 text-center">
         <p className="text-[10px] tracking-[0.3em] text-black/40">
           SHOP COLLECTION
         </p>
@@ -109,7 +109,7 @@ export default function HomeProducts({
       </div>
 
       {/* FILTERS */}
-      <div className="mb-10 overflow-x-auto scrollbar-hide">
+      <div className="mb-8 overflow-x-auto scrollbar-hide">
         <div className="flex min-w-max justify-center gap-2 px-1">
           {FILTERS.map((filter) => {
             const active = activeFilter === filter.key;
@@ -122,7 +122,7 @@ export default function HomeProducts({
                 className={`
                   whitespace-nowrap
                   border
-                  px-5
+                  px-3
                   py-3
                   text-xs
                   transition
@@ -142,7 +142,7 @@ export default function HomeProducts({
 
       {/* PRODUCTS */}
       {visibleProducts.length > 0 ? (
-<div className="grid grid-cols-2 gap-x-2 gap-y-8 px-3 sm:gap-x-4 sm:px-0 md:grid-cols-3 md:gap-6 lg:grid-cols-4">          {visibleProducts.map((product) => (
+<div className="grid grid-cols-2 gap-x-2 gap-y-8 px-2 sm:gap-x-4 sm:px-0 md:grid-cols-3 md:gap-6 lg:grid-cols-4">          {visibleProducts.map((product) => (
             <ProductCard
               key={product.id}
               product={product}

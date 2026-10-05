@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/admin-auth";
 
 const STORE_WHATSAPP = "201157499163";
 
@@ -18,10 +19,13 @@ function createWhatsAppUrl(message: string) {
 
 /**
  * GET
- * جلب كل الطلبات
+ * جلب كل الطلبات - Admin فقط
  */
 export async function GET() {
   try {
+    // 🔐 حماية بيانات الطلبات والعملاء
+    await requireAdmin();
+
     const orders = await prisma.order.findMany({
       orderBy: {
         createdAt: "desc",
@@ -41,10 +45,10 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء جلب الطلبات",
+        message: "غير مصرح لك بالوصول إلى الطلبات",
       },
       {
-        status: 500,
+        status: 401,
       }
     );
   }
@@ -53,6 +57,7 @@ export async function GET() {
 /**
  * POST
  * إنشاء طلب جديد
+ * مفتوح للزوار والعملاء
  */
 export async function POST(request: Request) {
   try {
@@ -196,17 +201,15 @@ export async function POST(request: Request) {
       });
 
     const settings = {
-      shippingCost:
-        Number(
-          storeSettings?.shippingCost ??
-            DEFAULT_SHIPPING_COST
-        ),
+      shippingCost: Number(
+        storeSettings?.shippingCost ??
+          DEFAULT_SHIPPING_COST
+      ),
 
-      freeShippingMinimum:
-        Number(
-          storeSettings?.freeShippingMinimum ??
-            DEFAULT_FREE_SHIPPING_MINIMUM
-        ),
+      freeShippingMinimum: Number(
+        storeSettings?.freeShippingMinimum ??
+          DEFAULT_FREE_SHIPPING_MINIMUM
+      ),
 
       acceptOrders:
         storeSettings?.acceptOrders ?? true,
