@@ -59,6 +59,7 @@ model Order {
   notes               String?
   total               Float
   status              String      @default("جديد")
+  inventoryDeducted   Boolean     @default(false)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   whatsappCountryCode String?
@@ -75,6 +76,7 @@ model OrderItem {
   quantity  Int
   image     String?
   createdAt DateTime @default(now())
+
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product? @relation(fields: [productId], references: [id])
 }
@@ -106,6 +108,10 @@ model Product {
   description  String?
   status       String      @default("available")
   isAvailable  Boolean     @default(true)
+
+  // إظهار / إخفاء المنتج من المتجر
+  isVisible    Boolean     @default(true)
+
   isBestSeller Boolean     @default(false)
   isTrending   Boolean     @default(false)
   isNew        Boolean     @default(false)

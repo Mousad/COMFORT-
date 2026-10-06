@@ -5,14 +5,21 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 import {
-  Heart,
   Menu,
+  X,
   Search,
   ShoppingBag,
-  User,
   Home,
-  X,
+  Heart,
+  User,
 } from "lucide-react";
+
+import {
+  FaInstagram,
+  FaWhatsapp,
+  FaFacebookF,
+  FaTiktok,
+} from "react-icons/fa";
 
 import { useCart } from "@/components/cart/CartProvider";
 import { useWishlist } from "@/components/wishlist/WishlistProvider";
@@ -35,7 +42,6 @@ export function Header() {
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
 
-  // هل نحن في الصفحة الرئيسية؟
   const isHomePage = pathname === "/";
 
   useEffect(() => {
@@ -63,12 +69,10 @@ export function Header() {
           HEADER
       ========================== */}
       <header className="sticky top-0 z-40 border-b border-black/10 bg-[#f0ede8]/95 backdrop-blur-sm">
-
         {/* =========================
             DESKTOP NAVBAR
         ========================== */}
         <div className="mx-auto hidden max-w-[1400px] items-center justify-between px-5 py-4 md:flex md:px-8 lg:py-5">
-
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-7 text-sm md:flex">
             <Link
@@ -101,10 +105,7 @@ export function Header() {
           </nav>
 
           {/* Desktop Logo */}
-          <Link
-            href="/"
-            className="text-center leading-none"
-          >
+          <Link href="/" className="text-center leading-none">
             <span className="block font-serif text-2xl tracking-[0.22em]">
               COMFORT
             </span>
@@ -112,33 +113,16 @@ export function Header() {
 
           {/* Desktop Icons */}
           <div className="flex items-center gap-4">
-
-            {/* =========================
-                SEARCH / HOME
-            ========================== */}
+            {/* SEARCH / HOME */}
             <Link
-              href={
-                isHomePage
-                  ? "/search"
-                  : "/"
-              }
-              aria-label={
-                isHomePage
-                  ? "بحث"
-                  : "الرئيسية"
-              }
+              href={isHomePage ? "/search" : "/"}
+              aria-label={isHomePage ? "بحث" : "الرئيسية"}
               className="transition-opacity hover:opacity-50"
             >
               {isHomePage ? (
-                <Search
-                  size={20}
-                  strokeWidth={1.4}
-                />
+                <Search size={20} strokeWidth={1.4} />
               ) : (
-                <Home
-                  size={20}
-                  strokeWidth={1.4}
-                />
+                <Home size={20} strokeWidth={1.4} />
               )}
             </Link>
 
@@ -148,10 +132,7 @@ export function Header() {
               aria-label="المفضلة"
               className="relative transition-opacity hover:opacity-50"
             >
-              <Heart
-                size={20}
-                strokeWidth={1.4}
-              />
+              <Heart size={20} strokeWidth={1.4} />
 
               {wishlistCount > 0 && (
                 <span className="absolute -left-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#171717] text-[9px] text-white">
@@ -167,10 +148,7 @@ export function Header() {
               data-cart-target
               className="relative transition-opacity hover:opacity-50"
             >
-              <ShoppingBag
-                size={20}
-                strokeWidth={1.4}
-              />
+              <ShoppingBag size={20} strokeWidth={1.4} />
 
               {cartCount > 0 && (
                 <span className="absolute -left-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#171717] text-[9px] text-white">
@@ -178,25 +156,18 @@ export function Header() {
                 </span>
               )}
             </Link>
-
           </div>
         </div>
 
         {/* =========================
             MOBILE TOP NAVBAR
-            LOGO ONLY
         ========================== */}
         <div className="md:hidden">
           <div className="flex h-[62px] items-center justify-center">
-            <Link
-              href="/"
-              className="text-center leading-none"
-            >
+            <Link href="/" className="text-center leading-none">
               <span className="block font-serif text-[20px] tracking-[0.12em]">
                 COMF
-                <span className="text-[#b89b72]">
-                  ORT
-                </span>
+                <span className="text-[#b89b72]">ORT</span>
               </span>
             </Link>
           </div>
@@ -206,11 +177,7 @@ export function Header() {
             MOBILE MENU
         ========================== */}
         {open && (
-          <div
-            className="fixed inset-0 z-[9999] h-screen w-screen bg-white text-[#171717]"
-            style={{ opacity: 1 }}
-          >
-
+          <div className="fixed inset-0 z-[9999] h-screen w-screen bg-white text-[#171717]">
             {/* Menu Header */}
             <div className="flex h-20 items-center justify-between border-b border-black/10 px-6">
               <span className="text-xs tracking-[0.2em]">
@@ -222,32 +189,27 @@ export function Header() {
                 aria-label="إغلاق القائمة"
                 className="flex h-10 w-10 items-center justify-center"
               >
-                <X
-                  size={24}
-                  strokeWidth={1.5}
-                />
+                <X size={24} strokeWidth={1.5} />
               </button>
             </div>
 
             {/* Menu Links */}
             <nav className="px-6 pt-10">
               <div className="flex flex-col">
-                {links.map(
-                  ([label, href], index) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center justify-between border-b border-black/10 py-5 text-xl font-serif transition-opacity hover:opacity-50"
-                    >
-                      <span>{label}</span>
+                {links.map(([label, href], index) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center justify-between border-b border-black/10 py-5 text-xl font-serif transition-opacity hover:opacity-50"
+                  >
+                    <span>{label}</span>
 
-                      <span className="text-sm text-black/30">
-                        0{index + 1}
-                      </span>
-                    </Link>
-                  )
-                )}
+                    <span className="text-sm text-black/30">
+                      0{index + 1}
+                    </span>
+                  </Link>
+                ))}
               </div>
             </nav>
 
@@ -261,7 +223,6 @@ export function Header() {
                 تابعينا على Instagram
               </p>
             </div>
-
           </div>
         )}
       </header>
@@ -277,7 +238,6 @@ export function Header() {
         }`}
       >
         <div className="flex h-[50px] items-center rounded-full bg-white">
-
           {/* CART */}
           <Link
             href="/cart"
@@ -315,9 +275,7 @@ export function Header() {
             )}
           </Link>
 
-          {/* =========================
-              SEARCH / HOME - CENTER
-          ========================== */}
+          {/* SEARCH / HOME - CENTER */}
           <Link
             href={
               isHomePage
@@ -332,7 +290,6 @@ export function Header() {
             className="flex h-full w-full items-center justify-center"
           >
             <span className="relative flex h-[50px] w-[50px] -translate-y-4 items-center justify-center rounded-full bg-[#4956ed] text-white shadow-md">
-
               {isHomePage ? (
                 <Search
                   size={26}
@@ -344,7 +301,6 @@ export function Header() {
                   strokeWidth={2}
                 />
               )}
-
             </span>
           </Link>
 
@@ -384,7 +340,6 @@ export function Header() {
               />
             )}
           </button>
-
         </div>
       </nav>
     </>
@@ -395,9 +350,7 @@ export function Footer() {
   return (
     <footer className="bg-[#171717] px-5 py-12 text-[#f0ede8] md:px-10 md:py-16">
       <div className="mx-auto max-w-[1400px]">
-
         <div className="grid gap-10 md:grid-cols-4">
-
           {/* Brand */}
           <div className="text-center">
             <div className="font-serif text-[20px] tracking-[0.2em]">
@@ -409,8 +362,8 @@ export function Footer() {
             </p>
           </div>
 
-          <div className="text-center grid grid-cols-2">
-
+          {/* Explore + Help */}
+          <div className="grid grid-cols-2 text-center">
             {/* Explore */}
             <div>
               <h3 className="mb-4 text-sm text-white/50">
@@ -452,22 +405,52 @@ export function Footer() {
                 </Link>
               </div>
             </div>
-
           </div>
 
           {/* Contact */}
-          <div>
-            <h3 className="mb-4 text-sm text-white/50">
+          <div className="text-center">
+            <h3 className="mb-5 text-sm text-white/50">
               تواصلي معنا
             </h3>
 
-            <p className="text-sm leading-7 text-white/75">
-              واتساب: 01000000000
-              <br />
-              Instagram: @comfortkeepers08
-            </p>
-          </div>
+            <div className="flex items-center justify-center gap-4">
+              {/* Instagram */}
+              <a
+                href="#"
+                aria-label="Instagram"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:border-white/40 hover:text-white"
+              >
+                <FaInstagram size={17} />
+              </a>
 
+              {/* WhatsApp */}
+              <a
+                href="#"
+                aria-label="WhatsApp"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:border-white/40 hover:text-white"
+              >
+                <FaWhatsapp size={17} />
+              </a>
+
+              {/* Facebook */}
+              <a
+                href="#"
+                aria-label="Facebook"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:border-white/40 hover:text-white"
+              >
+                <FaFacebookF size={16} />
+              </a>
+
+              {/* TikTok */}
+              <a
+                href="#"
+                aria-label="TikTok"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:border-white/40 hover:text-white"
+              >
+                <FaTiktok size={17} />
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Copyright */}
@@ -487,7 +470,6 @@ export function Footer() {
             تم التطوير
           </a>
         </div>
-
       </div>
     </footer>
   );

@@ -3,25 +3,56 @@ import { prisma } from "@/lib/prisma";
 import { createSlug } from "@/lib/slug";
 import { requireAdmin } from "@/lib/admin-auth";
 
-export async function GET() {
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+// ==========================================
+// GET - جلب منتج واحد
+// ==========================================
+export async function GET(
+  _request: Request,
+  { params }: RouteContext
+) {
   try {
-    const products = await prisma.product.findMany({
-      orderBy: {
-        createdAt: "desc",
+    await requireAdmin();
+
+    const { id } = await params;
+
+    const product = await prisma.product.findUnique({
+      where: {
+        id,
       },
     });
 
+    if (!product) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "المنتج غير موجود",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      products,
+      product,
     });
   } catch (error) {
-    console.error("GET products error:", error);
+    console.error("GET product error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء جلب المنتجات",
+        message:
+          error instanceof Error
+            ? error.message
+            : "حدث خطأ أثناء جلب المنتج",
       },
       {
         status: 500,
@@ -30,151 +61,377 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+// ==========================================
+// PATCH - تعديل المنتج
+// ==========================================
+export async function PATCH(
+  request: Request,
+  { params }: RouteContext
+) {
   try {
-    // 🔐 إضافة المنتجات للـ Admin فقط
     await requireAdmin();
 
+    const { id } = await params;
     const body = await request.json();
 
-    const name =
-      typeof body.name === "string"
-        ? body.name.trim()
-        : "";
+    const existingProduct = await prisma.product.findUnique({
+      where: {
+        id,
+      },
+    });
 
-    const category =
-      typeof body.category === "string"
-        ? body.category.trim()
-        : "";
-
-    const description =
-      typeof body.description === "string"
-        ? body.description.trim()
-        : "";
-
-    const image =
-      typeof body.image === "string"
-        ? body.image.trim()
-        : "";
-
-    const price = Number(body.price);
-    const stock = Number(body.stock);
-
-    const isBestSeller =
-      typeof body.isBestSeller === "boolean"
-        ? body.isBestSeller
-        : false;
-
-    const isTrending =
-      typeof body.isTrending === "boolean"
-        ? body.isTrending
-        : false;
-
-    const isNew =
-      typeof body.isNew === "boolean"
-        ? body.isNew
-        : false;
-
-    if (!name) {
+    if (!existingProduct) {
       return NextResponse.json(
         {
           success: false,
-          message: "اسم المنتج مطلوب",
+          message: "المنتج غير موجود",
         },
-        { status: 400 }
-      );
-    }
-
-    if (!category) {
-      return NextResponse.json(
         {
-          success: false,
-          message: "تصنيف المنتج مطلوب",
-        },
-        { status: 400 }
+          status: 404,
+        }
       );
     }
 
-    if (!Number.isFinite(price) || price < 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "السعر غير صحيح",
-        },
-        { status: 400 }
-      );
+    const data: Record<string, any> = {};
+
+    // ==========================================
+    // الاسم
+    // ==========================================
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "اسم المنتج غير صحيح",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const name = body.name.trim();
+
+      if (!name) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "اسم المنتج مطلوب",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      data.name = name;
     }
 
-    if (!Number.isInteger(stock) || stock < 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "الكمية غير صحيحة",
-        },
-        { status: 400 }
-      );
+    // ==========================================
+    // التصنيف
+    // ==========================================
+    if (body.category !== undefined) {
+      if (typeof body.category !== "string") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "تصنيف المنتج غير صحيح",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const category = body.category.trim();
+
+      if (!category) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "تصنيف المنتج مطلوب",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      data.category = category;
     }
 
-    let slug =
-      typeof body.slug === "string" &&
-      body.slug.trim()
-        ? body.slug.trim()
-        : createSlug(name);
+    // ==========================================
+    // السعر
+    // ==========================================
+    if (body.price !== undefined) {
+      const price = Number(body.price);
 
-    const existingSlug =
-      await prisma.product.findUnique({
+      if (!Number.isFinite(price) || price < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "السعر غير صحيح",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      data.price = price;
+    }
+
+    // ==========================================
+    // المخزون
+    // ==========================================
+    if (body.stock !== undefined) {
+      const stock = Number(body.stock);
+
+      if (!Number.isInteger(stock) || stock < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "الكمية غير صحيحة",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      data.stock = stock;
+
+      // تحديث حالة المخزون تلقائيًا
+      data.status =
+        stock === 0
+          ? "out"
+          : stock <= 5
+          ? "low"
+          : "available";
+
+      data.isAvailable = stock > 0;
+    }
+
+    // ==========================================
+    // الصورة
+    // ==========================================
+    if (body.image !== undefined) {
+      data.image =
+        typeof body.image === "string" && body.image.trim()
+          ? body.image.trim()
+          : null;
+    }
+
+    // ==========================================
+    // الوصف
+    // ==========================================
+    if (body.description !== undefined) {
+      data.description =
+        typeof body.description === "string" &&
+        body.description.trim()
+          ? body.description.trim()
+          : null;
+    }
+
+    // ==========================================
+    // Slug
+    // ==========================================
+    if (body.slug !== undefined) {
+      if (typeof body.slug !== "string") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "رابط المنتج غير صحيح",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const slug = body.slug.trim();
+
+      if (!slug) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "رابط المنتج مطلوب",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const existingSlug = await prisma.product.findFirst({
         where: {
           slug,
+          NOT: {
+            id,
+          },
         },
       });
 
-    if (existingSlug) {
-      slug = `${slug}-${Date.now()}`;
+      if (existingSlug) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "رابط المنتج مستخدم بالفعل",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      data.slug = slug;
+    } else if (
+      typeof body.name === "string" &&
+      body.name.trim() &&
+      !existingProduct.slug
+    ) {
+      data.slug = createSlug(body.name.trim());
     }
 
-    const status =
-      stock === 0
-        ? "out"
-        : stock <= 5
-        ? "low"
-        : "available";
+    // ==========================================
+    // 👁️ إخفاء / إظهار المنتج
+    // ==========================================
+    if (typeof body.isVisible === "boolean") {
+      data.isVisible = body.isVisible;
+    }
 
-    const product =
-      await prisma.product.create({
-        data: {
-          name,
-          slug,
-          category,
-          price,
-          stock,
-          image: image || null,
-          description: description || null,
-          status,
-          isAvailable: stock > 0,
-          isBestSeller,
-          isTrending,
-          isNew,
-          salesCount: 0,
+    // ==========================================
+    // ⭐ أفضل المبيعات
+    // ==========================================
+    if (typeof body.isBestSeller === "boolean") {
+      data.isBestSeller = body.isBestSeller;
+    }
+
+    // ==========================================
+    // 🔥 ترند
+    // ==========================================
+    if (typeof body.isTrending === "boolean") {
+      data.isTrending = body.isTrending;
+    }
+
+    // ==========================================
+    // 🆕 جديد
+    // ==========================================
+    if (typeof body.isNew === "boolean") {
+      data.isNew = body.isNew;
+    }
+
+    // ==========================================
+    // لا توجد بيانات للتعديل
+    // ==========================================
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "لم يتم إرسال أي بيانات للتعديل",
         },
-      });
+        {
+          status: 400,
+        }
+      );
+    }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "تمت إضافة المنتج بنجاح",
-        product,
+    // ==========================================
+    // تحديث المنتج
+    // ==========================================
+    const product = await prisma.product.update({
+      where: {
+        id,
       },
-      {
-        status: 201,
-      }
-    );
+      data,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "تم تعديل المنتج بنجاح",
+      product,
+    });
   } catch (error) {
-    console.error("POST product error:", error);
+    console.error("PATCH product error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "حدث خطأ أثناء إضافة المنتج",
+        message:
+          error instanceof Error
+            ? error.message
+            : "حدث خطأ أثناء تعديل المنتج",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+// ==========================================
+// DELETE - حذف المنتج نهائيًا
+// ==========================================
+export async function DELETE(
+  _request: Request,
+  { params }: RouteContext
+) {
+  try {
+    await requireAdmin();
+
+    const { id } = await params;
+
+    const existingProduct = await prisma.product.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingProduct) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "المنتج غير موجود",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    // نحافظ على الطلبات القديمة
+    // ونزيل فقط ارتباط المنتج بها.
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.updateMany({
+        where: {
+          productId: id,
+        },
+        data: {
+          productId: null,
+        },
+      });
+
+      await tx.product.delete({
+        where: {
+          id,
+        },
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "تم حذف المنتج نهائيًا",
+    });
+  } catch (error) {
+    console.error("DELETE product error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "حدث خطأ أثناء حذف المنتج",
       },
       {
         status: 500,

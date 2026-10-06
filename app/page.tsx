@@ -8,8 +8,9 @@ import {
   EditorialBanner,
   Hero,
   HomeProductSections,
-  InstagramReviews,
 } from "@/components/home/HomeSections";
+
+import InstagramReviews from "@/components/home/InstagramReviews";
 
 import BestSellers from "@/components/home/BestSellers";
 
@@ -38,35 +39,23 @@ export default async function HomePage() {
       <Header />
 
       <main>
-        {/* Hero */}
         <Hero />
-
-        {/* Announcement */}
         <AnnouncementBar />
-
-        {/* Categories */}
         <CategoriesSection categories={categories} />
 
-        {/* Products */}
         <HomeProductSections
           best={[]}
           products={products}
           categories={categories}
         />
 
-        {/* Best Sellers */}
         <BestSellers products={products} />
 
-        {/* Editorial Banner */}
         <EditorialBanner />
-
-        {/* Brand Story */}
         <BrandStory />
 
-        {/* Instagram Reviews */}
         <InstagramReviews />
 
-        {/* Contact */}
         <ContactSection />
       </main>
 
