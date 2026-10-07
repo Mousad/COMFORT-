@@ -1,434 +1,502 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
-const allowedStatuses = [
-  "جديد",
-  "جاري التنفيذ",
-  "جاهز للشحن",
-  "تم الشحن",
-  "تم التسليم",
-  "ملغي",
-];
+const STORE_WHATSAPP = "201125007121";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const DEFAULT_SHIPPING_COST = 50;
+const DEFAULT_FREE_SHIPPING_MINIMUM = 500;
+
+function cleanPhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function createWhatsAppUrl(message: string) {
+  return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(
+    message
+  )}`;
+}
+
+/**
+ * GET
+ * جلب كل الطلبات - Admin فقط
+ */
+export async function GET() {
   try {
+    // 🔐 حماية بيانات الطلبات والعملاء
     await requireAdmin();
 
-    const { id } = await params;
-
-    const order = await prisma.order.findUnique({
-      where: {
-        id,
+    const orders = await prisma.order.findMany({
+      orderBy: {
+        createdAt: "desc",
       },
       include: {
         items: true,
       },
     });
 
-    if (!order) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "الطلب غير موجود",
-        },
-        { status: 404 }
-      );
-    }
-
     return NextResponse.json({
       success: true,
-      order,
+      orders,
     });
   } catch (error) {
-    console.error("Get order error:", error);
+    console.error("Get orders error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "غير مصرح لك بالوصول إلى هذا الطلب",
+        message: "غير مصرح لك بالوصول إلى الطلبات",
       },
-      { status: 401 }
+      {
+        status: 401,
+      }
     );
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/**
+ * POST
+ * إنشاء طلب جديد
+ * مفتوح للزوار والعملاء
+ */
+export async function POST(request: Request) {
   try {
-    await requireAdmin();
-
-    const { id } = await params;
-
     const body = await request.json();
 
-    const status = String(body.status || "").trim();
+    const customer = body.customer;
+    const items = body.items;
 
-    if (!allowedStatuses.includes(status)) {
+    if (!customer) {
       return NextResponse.json(
         {
           success: false,
-          message: "حالة الطلب غير صحيحة",
+          message: "بيانات العميل مطلوبة",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    const existingOrder = await prisma.order.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        items: true,
-      },
-    });
-
-    if (!existingOrder) {
+    if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          message: "الطلب غير موجود",
+          message: "السلة فارغة",
         },
-        { status: 404 }
+        {
+          status: 400,
+        }
       );
     }
 
-    /*
-     * منع تنفيذ نفس الحالة مرة أخرى
-     */
-    if (existingOrder.status === status) {
+    /* =========================
+       التحقق من بيانات العميل
+    ========================= */
+
+    const customerName =
+      typeof customer.name === "string"
+        ? customer.name.trim()
+        : "";
+
+    const customerPhone =
+      typeof customer.phone === "string"
+        ? customer.phone.trim()
+        : "";
+
+    const whatsappCountryCode =
+      typeof customer.whatsappCountryCode === "string"
+        ? customer.whatsappCountryCode.trim()
+        : "";
+
+    const whatsappPhone =
+      typeof customer.whatsappPhone === "string"
+        ? customer.whatsappPhone.trim()
+        : "";
+
+    const city =
+      typeof customer.city === "string"
+        ? customer.city.trim()
+        : "";
+
+    const address =
+      typeof customer.address === "string"
+        ? customer.address.trim()
+        : "";
+
+    const notes =
+      typeof customer.notes === "string"
+        ? customer.notes.trim()
+        : "";
+
+    if (!customerName) {
       return NextResponse.json(
         {
           success: false,
-          message: "الطلب بالفعل في هذه الحالة",
+          message: "اسم العميل مطلوب",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    /*
-     * ==========================================
-     * تنفيذ الطلب
-     * جديد → جاري التنفيذ
-     *
-     * هنا فقط يتم خصم المخزون
-     * ==========================================
-     */
-
-    if (
-      existingOrder.status === "جديد" &&
-      status === "جاري التنفيذ"
-    ) {
-      if (existingOrder.inventoryDeducted) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "تم خصم مخزون هذا الطلب مسبقاً",
-          },
-          { status: 400 }
-        );
-      }
-
-      try {
-        const order = await prisma.$transaction(
-          async (tx) => {
-            /*
-             * نتحقق من كل المنتجات أولاً
-             * قبل خصم أي كمية.
-             */
-
-            const products = [];
-
-            for (const item of existingOrder.items) {
-              if (!item.productId) {
-                throw new Error(
-                  `المنتج "${item.name}" غير مرتبط بمنتج في المخزون`
-                );
-              }
-
-              const product = await tx.product.findUnique({
-                where: {
-                  id: item.productId,
-                },
-              });
-
-              if (!product) {
-                throw new Error(
-                  `المنتج "${item.name}" غير موجود في المخزون`
-                );
-              }
-
-              if (product.stock < item.quantity) {
-                throw new Error(
-                  `المنتج "${product.name}" لا يوجد منه كمية كافية. المتاح: ${product.stock}، المطلوب: ${item.quantity}`
-                );
-              }
-
-              products.push({
-                product,
-                quantity: item.quantity,
-              });
-            }
-
-            /*
-             * بعد التأكد من جميع المنتجات،
-             * نبدأ خصم المخزون.
-             */
-
-            for (const item of products) {
-              const newStock =
-                item.product.stock - item.quantity;
-
-              const newStatus =
-                newStock === 0
-                  ? "out"
-                  : newStock <= 5
-                  ? "low"
-                  : "available";
-
-              await tx.product.update({
-                where: {
-                  id: item.product.id,
-                },
-                data: {
-                  stock: newStock,
-
-                  status: newStatus,
-
-                  isAvailable: newStock > 0,
-
-                  salesCount: {
-                    increment: item.quantity,
-                  },
-                },
-              });
-            }
-
-            /*
-             * تحديث الطلب بعد نجاح خصم كل المنتجات
-             */
-
-            return await tx.order.update({
-              where: {
-                id: existingOrder.id,
-              },
-              data: {
-                status: "جاري التنفيذ",
-                inventoryDeducted: true,
-              },
-              include: {
-                items: true,
-              },
-            });
-          }
-        );
-
-        return NextResponse.json({
-          success: true,
-          message: "تم تنفيذ الطلب وخصم المخزون بنجاح",
-          order,
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "تعذر تنفيذ الطلب";
-
-        return NextResponse.json(
-          {
-            success: false,
-            message,
-          },
-          { status: 400 }
-        );
-      }
+    if (!customerPhone) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "رقم الهاتف مطلوب",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    /*
-     * ==========================================
-     * إلغاء الطلب
-     * ==========================================
-     *
-     * إذا كان المخزون قد خُصم سابقاً،
-     * نعيد الكمية للمخزون.
-     */
+    if (!whatsappPhone) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "رقم الواتساب مطلوب",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-    if (
-      status === "ملغي" &&
-      existingOrder.status !== "ملغي"
-    ) {
-      /*
-       * طلب جديد لم يُنفذ بعد:
-       * لا يوجد شيء نرجعه للمخزون.
-       */
+    if (!city) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "المدينة مطلوبة",
+        },
+        {
+          status: 400
+        }
+      );
+    }
 
-      if (!existingOrder.inventoryDeducted) {
-        const order = await prisma.order.update({
-          where: {
-            id: existingOrder.id,
-          },
-          data: {
-            status: "ملغي",
-          },
-          include: {
-            items: true,
-          },
-        });
+    if (!address) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "العنوان مطلوب",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-        return NextResponse.json({
-          success: true,
-          message: "تم إلغاء الطلب",
-          order,
-        });
-      }
+    /* =========================
+       إعدادات المتجر من Neon
+    ========================= */
 
-      /*
-       * الطلب كان منفذاً والمخزون مخصوماً،
-       * لذلك نعيد الكميات.
-       */
+    const storeSettings =
+      await prisma.storeSettings.findUnique({
+        where: {
+          id: 1,
+        },
+      });
 
-      try {
-        const order = await prisma.$transaction(
-          async (tx) => {
-            for (const item of existingOrder.items) {
-              if (!item.productId) {
-                continue;
-              }
+    const settings = {
+      shippingCost: Number(
+        storeSettings?.shippingCost ??
+          DEFAULT_SHIPPING_COST
+      ),
 
-              const product = await tx.product.findUnique({
-                where: {
-                  id: item.productId,
-                },
-              });
+      freeShippingMinimum: Number(
+        storeSettings?.freeShippingMinimum ??
+          DEFAULT_FREE_SHIPPING_MINIMUM
+      ),
 
-              if (!product) {
-                continue;
-              }
+      acceptOrders:
+        storeSettings?.acceptOrders ?? true,
 
-              const newStock =
-                product.stock + item.quantity;
+      currency:
+        storeSettings?.currency || "جنيه",
 
-              const newStatus =
-                newStock === 0
-                  ? "out"
-                  : newStock <= 5
-                  ? "low"
-                  : "available";
+      storeName:
+        storeSettings?.storeName ||
+        "COMFORT KEEPERS",
+    };
 
-              await tx.product.update({
-                where: {
-                  id: product.id,
-                },
-                data: {
-                  stock: newStock,
+    /* =========================
+       إيقاف استقبال الطلبات
+    ========================= */
 
-                  status: newStatus,
-
-                  isAvailable: newStock > 0,
-
-                  salesCount: {
-                    decrement: Math.min(
-                      item.quantity,
-                      product.salesCount
-                    ),
-                  },
-                },
-              });
-            }
-
-            return await tx.order.update({
-              where: {
-                id: existingOrder.id,
-              },
-              data: {
-                status: "ملغي",
-                inventoryDeducted: false,
-              },
-              include: {
-                items: true,
-              },
-            });
-          }
-        );
-
-        return NextResponse.json({
-          success: true,
+    if (!settings.acceptOrders) {
+      return NextResponse.json(
+        {
+          success: false,
           message:
-            "تم إلغاء الطلب وإرجاع المنتجات إلى المخزون",
-          order,
-        });
-      } catch (error) {
-        console.error(
-          "Restore inventory error:",
-          error
-        );
+            "عذراً، استقبال الطلبات متوقف حالياً",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
 
+    /* =========================
+       تنظيف المنتجات
+    ========================= */
+
+    const cleanedItems = items.map(
+      (item: any) => ({
+        id: item.id
+          ? String(item.id)
+          : undefined,
+
+        name:
+          typeof item.name === "string"
+            ? item.name.trim()
+            : "",
+
+        price: Number(item.price),
+
+        quantity: Number(item.quantity),
+
+        image:
+          typeof item.image === "string"
+            ? item.image
+            : null,
+      })
+    );
+
+    /* =========================
+       التحقق من المنتجات
+    ========================= */
+
+    for (const item of cleanedItems) {
+      if (!item.name) {
         return NextResponse.json(
           {
             success: false,
-            message:
-              "حدث خطأ أثناء إرجاع المنتجات إلى المخزون",
+            message: "اسم أحد المنتجات غير صحيح",
           },
-          { status: 500 }
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        !Number.isFinite(item.price) ||
+        item.price < 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `سعر المنتج "${item.name}" غير صحيح`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        !Number.isInteger(item.quantity) ||
+        item.quantity <= 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `كمية المنتج "${item.name}" غير صحيحة`,
+          },
+          {
+            status: 400,
+          }
         );
       }
     }
 
-    /*
-     * ==========================================
-     * باقي انتقالات الطلب
-     *
-     * جاري التنفيذ → جاهز للشحن
-     * جاهز للشحن → تم الشحن
-     * تم الشحن → تم التسليم
-     * ==========================================
-     */
+    /* =========================
+       حساب المنتجات
+    ========================= */
 
-    const validTransition =
-      (existingOrder.status === "جاري التنفيذ" &&
-        status === "جاهز للشحن") ||
-      (existingOrder.status === "جاهز للشحن" &&
-        status === "تم الشحن") ||
-      (existingOrder.status === "تم الشحن" &&
-        status === "تم التسليم");
-
-    if (!validTransition) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `لا يمكن تغيير حالة الطلب من "${existingOrder.status}" إلى "${status}"`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const order = await prisma.order.update({
-      where: {
-        id: existingOrder.id,
+    const subtotal = cleanedItems.reduce(
+      (sum: number, item: any) => {
+        return (
+          sum +
+          item.price * item.quantity
+        );
       },
+      0
+    );
+
+    /* =========================
+       حساب الشحن من Neon
+    ========================= */
+
+    const shipping =
+      subtotal >=
+      settings.freeShippingMinimum
+        ? 0
+        : settings.shippingCost;
+
+    /* =========================
+       الإجمالي النهائي
+    ========================= */
+
+    const total = subtotal + shipping;
+
+    /* =========================
+       إنشاء رقم الطلب
+    ========================= */
+
+    const orderNumber = `CK-${Date.now()
+      .toString()
+      .slice(-6)}`;
+
+    /* =========================
+       إنشاء الطلب في Neon
+    ========================= */
+
+    const order = await prisma.order.create({
       data: {
-        status,
+        orderNumber,
+
+        customerName,
+
+        customerPhone:
+          cleanPhone(customerPhone),
+
+        whatsappCountryCode,
+
+        whatsappPhone:
+          cleanPhone(whatsappPhone),
+
+        city,
+
+        address,
+
+        notes: notes || null,
+
+        total,
+
+        status: "جديد",
+
+        items: {
+          create: cleanedItems.map(
+            (item: any) => ({
+              productId: item.id || null,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              image: item.image,
+            })
+          ),
+        },
       },
+
       include: {
         items: true,
       },
     });
+
+    /* =========================
+       تجهيز رسالة الواتساب
+    ========================= */
+
+    const productsMessage =
+      order.items
+        .map(
+          (item) =>
+            `• ${item.name} × ${item.quantity} — ${(
+              item.price * item.quantity
+            ).toLocaleString("ar-EG")} ${settings.currency}`
+        )
+        .join("\n");
+
+    const shippingMessage =
+      shipping === 0
+        ? "مجاني"
+        : `${shipping.toLocaleString(
+            "ar-EG"
+          )} ${settings.currency}`;
+
+    const whatsappMessage = `
+طلب جديد من ${settings.storeName}
+
+━━━━━━━━━━━━━━
+رقم الطلب: ${orderNumber}
+━━━━━━━━━━━━━━
+
+👤 العميل:
+${customerName}
+
+📞 الهاتف:
+${customerPhone}
+
+💬 واتساب:
+${whatsappCountryCode} ${whatsappPhone}
+
+📍 المدينة:
+${city}
+
+🏠 العنوان:
+${address}
+
+━━━━━━━━━━━━━━
+🛍️ المنتجات:
+${productsMessage}
+
+━━━━━━━━━━━━━━
+💰 المنتجات:
+${subtotal.toLocaleString(
+      "ar-EG"
+    )} ${settings.currency}
+
+🚚 الشحن:
+${shippingMessage}
+
+💵 الإجمالي:
+${total.toLocaleString(
+      "ar-EG"
+    )} ${settings.currency}
+
+💳 طريقة الدفع:
+الدفع عند الاستلام
+
+${
+  notes
+    ? `📝 ملاحظات:\n${notes}`
+    : ""
+}
+
+━━━━━━━━━━━━━━
+`;
+
+    const whatsappUrl =
+      createWhatsAppUrl(
+        whatsappMessage
+      );
 
     return NextResponse.json({
       success: true,
-      message: "تم تحديث حالة الطلب بنجاح",
-      order,
+
+      message: "تم إنشاء الطلب بنجاح",
+
+      orderId: order.id,
+
+      orderNumber: order.orderNumber,
+
+      whatsappNumber: STORE_WHATSAPP,
+
+      whatsappUrl,
+
+      subtotal,
+
+      shipping,
+
+      total,
     });
   } catch (error) {
-    console.error(
-      "Update order status error:",
-      error
-    );
+    console.error("Create order error:", error);
 
     return NextResponse.json(
       {
@@ -436,9 +504,11 @@ export async function PATCH(
         message:
           error instanceof Error
             ? error.message
-            : "غير مصرح لك بتعديل حالة الطلب",
+            : "حدث خطأ أثناء إنشاء الطلب",
       },
-      { status: 401 }
+      {
+        status: 500,
+      }
     );
   }
 }

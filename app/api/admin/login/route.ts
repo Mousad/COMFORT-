@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { scryptSync, timingSafeEqual } from "crypto";
@@ -8,6 +9,8 @@ import {
   COOKIE_NAME,
 } from "@/lib/admin-auth";
 
+const SESSION_DURATION = 60 * 60 * 24 * 7; // 7 أيام
+
 function verifyPassword(password: string, storedHash: string) {
   try {
     const [salt, key] = storedHash.split(":");
@@ -17,7 +20,6 @@ function verifyPassword(password: string, storedHash: string) {
     }
 
     const derivedKey = scryptSync(password, salt, 64);
-
     const storedKey = Buffer.from(key, "hex");
 
     if (storedKey.length !== derivedKey.length) {
@@ -81,18 +83,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // إنشاء جلسة الأدمن
     const session = createAdminSession(admin.id);
 
+    // حفظ الجلسة في Cookie
     const cookieStore = await cookies();
 
-   cookieStore.set({
-  name: COOKIE_NAME,
-  value: session,
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-});
+    cookieStore.set({
+      name: COOKIE_NAME,
+      value: session,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_DURATION,
+    });
 
     return NextResponse.json({
       success: true,
