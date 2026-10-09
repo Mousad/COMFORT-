@@ -1,0 +1,2 @@
+/* Add this import near the top of app/globals.css, before other CSS rules. */
+@import "leaflet/dist/leaflet.css";

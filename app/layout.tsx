@@ -4,7 +4,8 @@ import "./globals.css";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { WishlistProvider } from "@/components/wishlist/WishlistProvider";
 import ScrollToTop from "@/components/ScrollToTop";
-import NewsletterPopup from "@/components/newsletter/NewsletterPopup";
+import NewsletterPopup from "@/components/newsletter/NewsletterPopup"
+import "leaflet/dist/leaflet.css";;
 
 export const metadata: Metadata = {
   title: "Comfort Keepers | عطور ومنتجات عناية",
@@ -27,7 +28,7 @@ export default function RootLayout({
           </WishlistProvider>
         </CartProvider>
 
-        <NewsletterPopup />
+        {/* <NewsletterPopup /> */}
       </body>
     </html>
   );

@@ -1,0 +1,31 @@
+في model Order أضف هذه الحقول بعد address مباشرة:
+
+latitude    Float?
+longitude   Float?
+distanceKm  Float @default(0)
+
+مثال:
+
+model Order {
+  id                  String      @id @default(cuid())
+  orderNumber         String      @unique
+  customerName        String
+  customerPhone       String
+  city                String
+  area                String      @default("")
+  address             String
+  latitude            Float?
+  longitude           Float?
+  distanceKm          Float       @default(0)
+  notes               String?
+  subtotal            Float       @default(0)
+  shipping            Float       @default(70)
+  total               Float
+  status              String      @default("جديد")
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  whatsappCountryCode String?
+  whatsappPhone       String?
+  inventoryDeducted   Boolean     @default(false)
+  items               OrderItem[]
+}

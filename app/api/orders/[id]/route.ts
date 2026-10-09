@@ -1,12 +1,11 @@
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
-const STORE_WHATSAPP = "201125007121";
+const STORE_WHATSAPP = "201157499163";
 
-const DEFAULT_SHIPPING_COST = 50;
-const DEFAULT_FREE_SHIPPING_MINIMUM = 500;
+const HADAAYEQ_AL_AHRAM_SHIPPING = 30;
+const CAIRO_GIZA_SHIPPING = 70;
 
 function cleanPhone(value: string) {
   return value.replace(/\D/g, "");
@@ -19,12 +18,57 @@ function createWhatsAppUrl(message: string) {
 }
 
 /**
+ * تنظيف النصوص للمقارنة
+ */
+function normalizeArabicText(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه");
+}
+
+/**
+ * حساب الشحن حسب المنطقة
+ *
+ * حدائق الأهرام = 30 جنيه
+ * أي مكان آخر في القاهرة أو الجيزة = 70 جنيه
+ */
+function calculateShipping(city: string, area: string) {
+  const normalizedCity = normalizeArabicText(city);
+  const normalizedArea = normalizeArabicText(area);
+
+  const isCairo =
+    normalizedCity === "القاهره" ||
+    normalizedCity === "القاهرة";
+
+  const isGiza =
+    normalizedCity === "الجيزه" ||
+    normalizedCity === "الجيزة";
+
+  const isHadayekAlAhram =
+    normalizedArea.includes("حدائق الاهرام") ||
+    normalizedArea.includes("حدايق الاهرام");
+
+  if (isHadayekAlAhram && (isCairo || isGiza)) {
+    return HADAAYEQ_AL_AHRAM_SHIPPING;
+  }
+
+  if (isCairo || isGiza) {
+    return CAIRO_GIZA_SHIPPING;
+  }
+
+  // في حالة إرسال مدينة غير القاهرة أو الجيزة
+  // نستخدم سعر القاهرة والجيزة الافتراضي
+  return CAIRO_GIZA_SHIPPING;
+}
+
+/**
  * GET
  * جلب كل الطلبات - Admin فقط
  */
 export async function GET() {
   try {
-    // 🔐 حماية بيانات الطلبات والعملاء
     await requireAdmin();
 
     const orders = await prisma.order.findMany({
@@ -120,6 +164,11 @@ export async function POST(request: Request) {
         ? customer.city.trim()
         : "";
 
+    const area =
+      typeof customer.area === "string"
+        ? customer.area.trim()
+        : "";
+
     const address =
       typeof customer.address === "string"
         ? customer.address.trim()
@@ -178,6 +227,18 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!area) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "المنطقة مطلوبة",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     if (!address) {
       return NextResponse.json(
         {
@@ -191,7 +252,7 @@ export async function POST(request: Request) {
     }
 
     /* =========================
-       إعدادات المتجر من Neon
+       إعدادات المتجر
     ========================= */
 
     const storeSettings =
@@ -202,16 +263,6 @@ export async function POST(request: Request) {
       });
 
     const settings = {
-      shippingCost: Number(
-        storeSettings?.shippingCost ??
-          DEFAULT_SHIPPING_COST
-      ),
-
-      freeShippingMinimum: Number(
-        storeSettings?.freeShippingMinimum ??
-          DEFAULT_FREE_SHIPPING_MINIMUM
-      ),
-
       acceptOrders:
         storeSettings?.acceptOrders ?? true,
 
@@ -329,14 +380,13 @@ export async function POST(request: Request) {
     );
 
     /* =========================
-       حساب الشحن من Neon
+       حساب الشحن
     ========================= */
 
-    const shipping =
-      subtotal >=
-      settings.freeShippingMinimum
-        ? 0
-        : settings.shippingCost;
+    const shipping = calculateShipping(
+      city,
+      area
+    );
 
     /* =========================
        الإجمالي النهائي
@@ -353,7 +403,7 @@ export async function POST(request: Request) {
       .slice(-6)}`;
 
     /* =========================
-       إنشاء الطلب في Neon
+       إنشاء الطلب
     ========================= */
 
     const order = await prisma.order.create({
@@ -372,9 +422,15 @@ export async function POST(request: Request) {
 
         city,
 
+        area,
+
         address,
 
         notes: notes || null,
+
+        subtotal,
+
+        shipping,
 
         total,
 
@@ -383,10 +439,15 @@ export async function POST(request: Request) {
         items: {
           create: cleanedItems.map(
             (item: any) => ({
-              productId: item.id || null,
+              productId:
+                item.id || null,
+
               name: item.name,
+
               price: item.price,
+
               quantity: item.quantity,
+
               image: item.image,
             })
           ),
@@ -412,12 +473,9 @@ export async function POST(request: Request) {
         )
         .join("\n");
 
-    const shippingMessage =
-      shipping === 0
-        ? "مجاني"
-        : `${shipping.toLocaleString(
-            "ar-EG"
-          )} ${settings.currency}`;
+    const shippingMessage = `${shipping.toLocaleString(
+      "ar-EG"
+    )} ${settings.currency}`;
 
     const whatsappMessage = `
 طلب جديد من ${settings.storeName}
@@ -437,6 +495,9 @@ ${whatsappCountryCode} ${whatsappPhone}
 
 📍 المدينة:
 ${city}
+
+📌 المنطقة:
+${area}
 
 🏠 العنوان:
 ${address}
@@ -496,7 +557,10 @@ ${
       total,
     });
   } catch (error) {
-    console.error("Create order error:", error);
+    console.error(
+      "Create order error:",
+      error
+    );
 
     return NextResponse.json(
       {

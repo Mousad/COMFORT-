@@ -33,6 +33,7 @@ type Order = {
   whatsappPhone: string;
 
   city: string;
+  area: string;
   address: string;
   notes: string | null;
 
@@ -156,8 +157,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [activeFilter, setActiveFilter] =
-    useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const [search, setSearch] = useState("");
 
@@ -178,28 +178,21 @@ export default function AdminOrdersPage() {
 
         setError("");
 
-        const response = await fetch(
-          "/api/orders",
-          {
-            cache: "no-store",
-          }
-        );
+        const response = await fetch("/api/orders", {
+          cache: "no-store",
+        });
 
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
-            data.message ||
-              "حدث خطأ أثناء جلب الطلبات"
+            data.message || "حدث خطأ أثناء جلب الطلبات"
           );
         }
 
         setOrders(data.orders || []);
       } catch (error) {
-        console.error(
-          "Fetch orders error:",
-          error
-        );
+        console.error("Fetch orders error:", error);
 
         setError(
           error instanceof Error
@@ -240,16 +233,10 @@ export default function AdminOrdersPage() {
       fetchOrders();
     };
 
-    window.addEventListener(
-      "focus",
-      handleFocus
-    );
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      window.removeEventListener(
-        "focus",
-        handleFocus
-      );
+      window.removeEventListener("focus", handleFocus);
     };
   }, [fetchOrders]);
 
@@ -303,9 +290,7 @@ export default function AdminOrdersPage() {
 
       setOrders((currentOrders) =>
         currentOrders.map((order) =>
-          order.id === orderId
-            ? data.order
-            : order
+          order.id === orderId ? data.order : order
         )
       );
     } catch (error) {
@@ -392,6 +377,12 @@ export default function AdminOrdersPage() {
           .includes(query) ||
         order.city
           .toLowerCase()
+          .includes(query) ||
+        (order.area || "")
+          .toLowerCase()
+          .includes(query) ||
+        order.address
+          .toLowerCase()
           .includes(query)
       );
     });
@@ -452,9 +443,7 @@ export default function AdminOrdersPage() {
             <RefreshCw
               size={16}
               className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
+                refreshing ? "animate-spin" : ""
               }
             />
 
@@ -467,38 +456,37 @@ export default function AdminOrdersPage() {
 
       <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
         {/* New order alert */}
-        {newOrderAlert &&
-          counts.new > 0 && (
-            <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-600">
-                  <Package size={19} />
-                </div>
-
-                <div>
-                  <p className="font-semibold text-blue-900">
-                    لديك طلبات جديدة
-                  </p>
-
-                  <p className="mt-1 text-xs text-blue-700">
-                    يوجد {counts.new} طلب لم يتم
-                    تجهيزه بعد.
-                  </p>
-                </div>
+        {newOrderAlert && counts.new > 0 && (
+          <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-600">
+                <Package size={19} />
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveFilter("جديد");
-                  setNewOrderAlert(false);
-                }}
-                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                عرض الطلبات الجديدة
-              </button>
+              <div>
+                <p className="font-semibold text-blue-900">
+                  لديك طلبات جديدة
+                </p>
+
+                <p className="mt-1 text-xs text-blue-700">
+                  يوجد {counts.new} طلب لم يتم
+                  تجهيزه بعد.
+                </p>
+              </div>
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter("جديد");
+                setNewOrderAlert(false);
+              }}
+              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              عرض الطلبات الجديدة
+            </button>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -521,31 +509,24 @@ export default function AdminOrdersPage() {
             label="كل الطلبات"
             value={counts.all}
             active={activeFilter === "all"}
-            onClick={() =>
-              setActiveFilter("all")
-            }
+            onClick={() => setActiveFilter("all")}
           />
 
           <StatCard
             label="لم تُجهّز"
             value={counts.new}
             active={activeFilter === "جديد"}
-            onClick={() =>
-              setActiveFilter("جديد")
-            }
+            onClick={() => setActiveFilter("جديد")}
           />
 
           <StatCard
             label="جاري التنفيذ"
             value={counts.processing}
             active={
-              activeFilter ===
-              "جاري التنفيذ"
+              activeFilter === "جاري التنفيذ"
             }
             onClick={() =>
-              setActiveFilter(
-                "جاري التنفيذ"
-              )
+              setActiveFilter("جاري التنفيذ")
             }
           />
 
@@ -553,13 +534,10 @@ export default function AdminOrdersPage() {
             label="جاهزة للشحن"
             value={counts.ready}
             active={
-              activeFilter ===
-              "جاهز للشحن"
+              activeFilter === "جاهز للشحن"
             }
             onClick={() =>
-              setActiveFilter(
-                "جاهز للشحن"
-              )
+              setActiveFilter("جاهز للشحن")
             }
           />
 
@@ -570,9 +548,7 @@ export default function AdminOrdersPage() {
               activeFilter === "تم الشحن"
             }
             onClick={() =>
-              setActiveFilter(
-                "تم الشحن"
-              )
+              setActiveFilter("تم الشحن")
             }
           />
 
@@ -580,22 +556,17 @@ export default function AdminOrdersPage() {
             label="تم التسليم"
             value={counts.delivered}
             active={
-              activeFilter ===
-              "تم التسليم"
+              activeFilter === "تم التسليم"
             }
             onClick={() =>
-              setActiveFilter(
-                "تم التسليم"
-              )
+              setActiveFilter("تم التسليم")
             }
           />
 
           <StatCard
             label="ملغية"
             value={counts.cancelled}
-            active={
-              activeFilter === "ملغي"
-            }
+            active={activeFilter === "ملغي"}
             onClick={() =>
               setActiveFilter("ملغي")
             }
@@ -616,11 +587,9 @@ export default function AdminOrdersPage() {
                 type="search"
                 value={search}
                 onChange={(event) =>
-                  setSearch(
-                    event.target.value
-                  )
+                  setSearch(event.target.value)
                 }
-                placeholder="ابحث برقم الطلب أو اسم العميل أو الهاتف..."
+                placeholder="ابحث برقم الطلب أو اسم العميل أو الهاتف أو المنطقة..."
                 className="h-12 w-full rounded-xl border border-black/10 bg-[#faf9f7] pr-11 pl-4 text-sm outline-none transition focus:border-[#b89b72] focus:ring-2 focus:ring-[#b89b72]/10"
               />
             </div>
@@ -632,13 +601,10 @@ export default function AdminOrdersPage() {
                   key={filter.key}
                   type="button"
                   onClick={() =>
-                    setActiveFilter(
-                      filter.key
-                    )
+                    setActiveFilter(filter.key)
                   }
                   className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-medium transition ${
-                    activeFilter ===
-                    filter.key
+                    activeFilter === filter.key
                       ? "bg-[#171717] text-white"
                       : "bg-[#f0ede8] text-black/55 hover:bg-black/5"
                   }`}
@@ -658,8 +624,7 @@ export default function AdminOrdersPage() {
                 ? "جميع الطلبات"
                 : filters.find(
                     (filter) =>
-                      filter.key ===
-                      activeFilter
+                      filter.key === activeFilter
                   )?.label}
             </h2>
 
@@ -691,18 +656,13 @@ export default function AdminOrdersPage() {
           <div className="space-y-3">
             {sortedOrders.map((order) => {
               const nextStatus =
-                getNextStatus(
-                  order.status
-                );
+                getNextStatus(order.status);
 
               const actionText =
-                getActionText(
-                  order.status
-                );
+                getActionText(order.status);
 
               const updating =
-                updatingOrderId ===
-                order.id;
+                updatingOrderId === order.id;
 
               return (
                 <article
@@ -766,7 +726,16 @@ export default function AdminOrdersPage() {
 
                         <p className="mt-1 text-xs text-black/40">
                           {order.city}
+                          {order.area
+                            ? ` — ${order.area}`
+                            : ""}
                         </p>
+
+                        {order.address && (
+                          <p className="mt-1 line-clamp-1 text-xs text-black/35">
+                            {order.address}
+                          </p>
+                        )}
                       </div>
 
                       {/* Products */}
@@ -784,8 +753,7 @@ export default function AdminOrdersPage() {
                           الكمية:{" "}
                           {order.items.reduce(
                             (sum, item) =>
-                              sum +
-                              item.quantity,
+                              sum + item.quantity,
                             0
                           )}
                         </p>
@@ -814,6 +782,7 @@ export default function AdminOrdersPage() {
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f0ede8] px-4 text-xs font-medium transition hover:bg-black/10"
                         >
                           التفاصيل
+
                           <ChevronLeft
                             size={15}
                           />
@@ -823,9 +792,7 @@ export default function AdminOrdersPage() {
                           actionText && (
                             <button
                               type="button"
-                              disabled={
-                                updating
-                              }
+                              disabled={updating}
                               onClick={() =>
                                 updateOrderStatus(
                                   order.id,
@@ -850,8 +817,7 @@ export default function AdminOrdersPage() {
                   </div>
 
                   {/* New order indicator */}
-                  {order.status ===
-                    "جديد" && (
+                  {order.status === "جديد" && (
                     <div className="h-1 bg-blue-500" />
                   )}
                 </article>

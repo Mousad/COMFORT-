@@ -4,15 +4,15 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 export default function ScrollToTop() {
-  const pathname = usePathname();
+const pathname = usePathname();
 
-  useEffect(() => {
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "instant",
-    });
-  }, [pathname]);
+useEffect(() => {
+window.scrollTo({
+top: 0,
+left: 0,
+behavior: "auto",
+});
+}, [pathname]);
 
-  return null;
+return null;
 }
