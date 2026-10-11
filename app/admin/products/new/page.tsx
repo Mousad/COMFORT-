@@ -12,9 +12,11 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 const categories = [
-  "برفيوم حريمي",
-  "برفيوم رجالي",
+   "عطور نسائية",
+  "عطور رجالي",
   "برفيوم 50 ml",
+  " عطور رجالية 50 مل",
+  " عطور نسائية  50 مل",
   "Skin Care",
   "ماستر بوكس حريمي",
   "ماستر بوكس رجالي",

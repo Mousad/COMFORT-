@@ -12,7 +12,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useEffect, useState } from "react";
+
 
 type ProductStatus = "available" | "low" | "out";
 
@@ -30,9 +31,11 @@ type Product = {
 
 const categories = [
   "الكل",
-  "برفيوم حريمي",
-  "برفيوم رجالي",
+  "عطور نسائية",
+  "عطور رجالي",
   "برفيوم 50 ml",
+  " عطور رجالية 50 مل",
+  " عطور نسائية  50 مل",
   "Skin Care",
   "ماستر بوكس حريمي",
   "ماستر بوكس رجالي",
