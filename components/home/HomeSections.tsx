@@ -11,10 +11,11 @@ import {
   Sparkles,
   Tag,
   ShieldCheck,
+  RotateCcw,
   Gift,
   Heart,
   Play,
-    Phone,
+  Phone,
   Mail,
   MapPin,
   MessageCircle,
@@ -270,86 +271,74 @@ export function AnnouncementBar() {
    CATEGORIES
 ========================================================= */
 
+
+/* =========================================================
+   CATEGORIES
+========================================================= */
+
 export function CategoriesSection({
   categories,
 }: {
   categories: Category[];
 }) {
-  const count = categories.length;
-
-  const isThree = count === 3;
-  const isFive = count === 5;
+  if (!categories.length) return null;
 
   return (
-    <section className="mx-auto max-w-[1400px] px-6 py-10 md:px-8 md:py-24">
-
-      <div className="mb-8 text-center md:mb-10">
-        <h2 className="font-serif text-3xl md:text-4xl">
+    <section className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 md:px-8 md:py-16">
+      <div className="mb-6 text-center md:mb-9">
+        <h2 className="font-serif text-2xl text-[#211f1b] md:text-4xl">
           تسوقي حسب المجموعة
         </h2>
       </div>
 
-      <div
-        className={`
-          grid gap-3 md:grid-cols-3 md:gap-8
-          ${
-            isThree || isFive
-              ? "grid-cols-2"
-              : count >= 6
-                ? "grid-cols-3"
-                : "grid-cols-2"
-          }
-        `}
-      >
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-3 md:grid-cols-4 md:gap-5">
         {categories.map((category, index) => {
-          // في حالة 3 أقسام:
-          // 2 فوق + 1 كاملة تحت
-          const isThreeLast = isThree && index === 2;
-
-          // في حالة 5 أقسام:
-          // 2 فوق + 1 كاملة في الوسط + 2 تحت
-          const isFiveMiddle = isFive && index === 2;
-
-          const isFullWidth = isThreeLast || isFiveMiddle;
+          const isFeatured = index === 0;
 
           return (
             <Link
               href={`/categories/${category.slug}`}
               key={category.id}
-              className={`
-                group
-                ${isFullWidth ? "col-span-2 md:col-span-1" : ""}
-              `}
+              className={`group block min-w-0 ${
+                isFeatured
+                  ? "col-span-3 md:col-span-2"
+                  : "col-span-1"
+              }`}
             >
               <div
-                className={`
-                  relative w-full overflow-hidden rounded-[10px] bg-[#dfd9d2]
-                  ${
-                    isFullWidth
-                      ? "aspect-[2/1] md:aspect-square"
-                      : "aspect-square"
-                  }
-                `}
+                className={`relative w-full overflow-hidden rounded-lg bg-[#e5ded4] ${
+                  isFeatured
+                    ? "aspect-[2.5/1] md:aspect-[1.8/1]"
+                    : "aspect-[0.82/1] md:aspect-[0.9/1]"
+                }`}
               >
                 <img
                   src={category.image || "/placeholder.jpg"}
                   alt={category.name}
-                  className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
+                  loading={index < 2 ? "eager" : "lazy"}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
 
-                <div className="absolute inset-0 bg-black/20 transition duration-500 group-hover:bg-black/30" />
+                {/* Overlay behind category name */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
-                <div className="absolute inset-0 flex items-center justify-center px-4">
-                  <p className="font-serif text-lg text-white md:text-xl">
+                {/* Category name inside image */}
+                <div className="absolute inset-x-1 bottom-2 flex justify-center px-1.5 sm:bottom-3 sm:px-2">
+                  <h3
+                    className={`text-center font-serif font-medium leading-tight text-white drop-shadow-md ${
+                      isFeatured
+                        ? "text-sm sm:text-base md:text-xl"
+                        : "text-[10px] sm:text-xs md:text-sm"
+                    }`}
+                  >
                     {category.name}
-                  </p>
+                  </h3>
                 </div>
               </div>
             </Link>
           );
         })}
       </div>
-
     </section>
   );
 }
@@ -369,16 +358,66 @@ export function HomeProductSections({
 }) {
   return (
     <>
-      {/* =====================================================
-          المنتجات + الفلتر + الترقيم
-      ===================================================== */}
-
       <HomeProducts
         products={products}
         categories={categories}
       />
+
+      <StoreBenefits />
     </>
   );
+}
+
+
+function StoreBenefits() {
+const benefits = [
+{
+title: "شحن سريع",
+description: "يتم تجهيز طلبك بعناية للشحن.",
+Icon: Truck,
+},
+{
+title: "منتجات أصلية",
+description: "جودة مختارة بعناية.",
+Icon: ShieldCheck,
+},
+{
+title: "خدمة ما بعد البيع",
+description: "تواصلي معنا لأي استفسار حول طلبك.",
+Icon: RotateCcw,
+},
+];
+
+return ( <section
+   dir="rtl"
+   className="mx-auto mt-8 w-full max-w-7xl px-4 sm:px-6 lg:px-10"
+ > <div className="grid grid-cols-3 border-y border-black/10">
+{benefits.map(({ title, description, Icon }, index) => (
+<div
+key={title}
+className={`flex flex-col items-center px-2 py-5 text-center sm:flex-row sm:items-start sm:gap-3 sm:px-4 sm:text-right ${
+              index !== 0 ? "border-r border-black/10" : ""
+            }`}
+> <Icon
+           size={19}
+           strokeWidth={1.3}
+           className="shrink-0"
+         />
+
+
+        <div className="mt-2 sm:mt-0">
+          <p className="text-xs font-medium">{title}</p>
+          <p className="mt-1 text-[10px] leading-5 text-black/45 sm:text-[11px]">
+            {description}
+          </p>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
+
+);
 }
 
 /* =========================================================

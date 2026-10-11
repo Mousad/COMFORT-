@@ -1,4 +1,6 @@
+
 import { prisma } from "@/lib/prisma";
+
 import type { Product, Category } from "@/types/product";
 
 type DbProduct = {
@@ -34,38 +36,19 @@ type DbCategory = {
 function mapProduct(product: DbProduct): Product {
   return {
     id: product.id,
-
-    // توافق مع الكود القديم
     documentId: product.id,
-
     name: product.name,
-
-    // المنتجات القديمة التي لا تحتوي slug
-    // نستخدم id كبديل مؤقت
     slug: product.slug || product.id,
-
     description: product.description || "",
-
     price: product.price,
-
-    // قاعدة البيانات تحتوي على صورة واحدة
-    // والواجهة تتوقع images[]
     images: product.image ? [product.image] : [],
-
     category: product.category,
-
     stock: product.stock,
-
     isAvailable: product.isAvailable,
-
     isBestSeller: product.isBestSeller,
-
     isTrending: product.isTrending,
-
     isNew: product.isNew,
-
     salesCount: product.salesCount,
-
     createdAt: product.createdAt.toISOString(),
   };
 }
@@ -77,16 +60,10 @@ function mapProduct(product: DbProduct): Product {
 function mapCategory(category: DbCategory): Category {
   return {
     id: category.id,
-
-    // توافق مع الكود القديم
     documentId: category.id,
-
     name: category.name,
-
     slug: category.slug,
-
     image: category.image || "",
-
     description: category.description || undefined,
   };
 }
@@ -102,16 +79,10 @@ export async function getProducts(
     where: {
       isAvailable: true,
     },
-
     orderBy: {
       createdAt: "desc",
     },
-
-    ...(limit
-      ? {
-          take: limit,
-        }
-      : {}),
+    ...(limit ? { take: limit } : {}),
   });
 
   return products.map((product) =>
@@ -126,26 +97,37 @@ export async function getProducts(
 export async function getProductBySlug(
   slug: string
 ): Promise<Product | null> {
-  const product = await prisma.product.findFirst({
-    where: {
-      isAvailable: true,
+  const value = slug.trim();
 
-      OR: [
-        {
-          slug,
-        },
-        {
-          id: slug,
-        },
-      ],
-    },
-  });
-
-  if (!product) {
+  if (!value) {
     return null;
   }
 
-  return mapProduct(product as DbProduct);
+  // البحث عن المنتج باستخدام slug أولاً
+  const productBySlug = await prisma.product.findFirst({
+    where: {
+      slug: value,
+      isAvailable: true,
+    },
+  });
+
+  if (productBySlug) {
+    return mapProduct(productBySlug as DbProduct);
+  }
+
+  // إذا لم يوجد، نبحث باستخدام id
+  const productById = await prisma.product.findFirst({
+    where: {
+      id: value,
+      isAvailable: true,
+    },
+  });
+
+  if (!productById) {
+    return null;
+  }
+
+  return mapProduct(productById as DbProduct);
 }
 
 /* =========================================================
@@ -157,7 +139,6 @@ export async function getCategories(): Promise<Category[]> {
     where: {
       isActive: true,
     },
-
     orderBy: {
       createdAt: "asc",
     },
@@ -190,6 +171,47 @@ export async function getCategoryBySlug(
 }
 
 /* =========================================================
+   LEGACY CATEGORY NAMES
+========================================================= */
+
+const legacyCategoryNames: Record<string, string[]> = {
+  "women-perfume": [
+    "برفيوم حريمي",
+    "عطر نسائي",
+  ],
+
+  "men-perfume": [
+    "برفيوم رجالي",
+    "عطر رجالي",
+  ],
+
+  "perfume-50ml": [
+    "برفيوم 50 ml",
+    "برفيوم رجالي 50 ml",
+  ],
+
+  "skin-care": [
+    "Skin Care",
+    "Skincare",
+  ],
+
+  "perfume-wemn-50ml": [
+    "برفيوم حريمي 50 ml",
+    "برفيوم نسائي 50 ml",
+  ],
+
+  "master-box-women": [
+    "ماستر بوكس حريمي",
+    "بوكسات نسائية",
+  ],
+
+  "master-box-men": [
+    "ماستر بوكس رجالي",
+    "بوكسات رجالية",
+  ],
+};
+
+/* =========================================================
    PRODUCTS BY CATEGORY
 ========================================================= */
 
@@ -207,12 +229,18 @@ export async function getProductsByCategory(
     return [];
   }
 
+  const categoryNames = [
+    category.name,
+    ...(legacyCategoryNames[categorySlug] || []),
+  ];
+
   const products = await prisma.product.findMany({
     where: {
-      category: category.name,
+      category: {
+        in: [...new Set(categoryNames)],
+      },
       isAvailable: true,
     },
-
     orderBy: {
       createdAt: "desc",
     },
@@ -230,32 +258,18 @@ export async function getProductsByCategory(
 export async function getBestSellers(
   limit: number = 8
 ): Promise<Product[]> {
-  // أولاً نحاول جلب المنتجات التي تم تحديدها
-  // من الأدمن كـ "الأكثر مبيعًا"
   const markedProducts = await prisma.product.findMany({
     where: {
       isAvailable: true,
       isBestSeller: true,
     },
-
     orderBy: [
-      {
-        salesCount: "desc",
-      },
-      {
-        createdAt: "desc",
-      },
+      { salesCount: "desc" },
+      { createdAt: "desc" },
     ],
-
     take: limit,
   });
 
-  /*
-   * لو ما في أي منتج محدد كـ "الأكثر مبيعًا"
-   * نستخدم المنتجات المتاحة كبديل
-   *
-   * هذا يمنع الصفحة الرئيسية من الظهور فارغة.
-   */
   const products =
     markedProducts.length > 0
       ? markedProducts
@@ -263,16 +277,10 @@ export async function getBestSellers(
           where: {
             isAvailable: true,
           },
-
           orderBy: [
-            {
-              salesCount: "desc",
-            },
-            {
-              createdAt: "desc",
-            },
+            { salesCount: "desc" },
+            { createdAt: "desc" },
           ],
-
           take: limit,
         });
 
@@ -288,24 +296,17 @@ export async function getBestSellers(
 export async function getTrendingProducts(
   limit: number = 8
 ): Promise<Product[]> {
-  // المنتجات المحددة كـ "الأكثر رواجًا"
   const markedProducts = await prisma.product.findMany({
     where: {
       isAvailable: true,
       isTrending: true,
     },
-
     orderBy: {
       createdAt: "desc",
     },
-
     take: limit,
   });
 
-  /*
-   * إذا لا يوجد أي منتج عليه isTrending
-   * نستخدم المنتجات المتاحة كبديل.
-   */
   const products =
     markedProducts.length > 0
       ? markedProducts
@@ -313,11 +314,9 @@ export async function getTrendingProducts(
           where: {
             isAvailable: true,
           },
-
           orderBy: {
             createdAt: "desc",
           },
-
           take: limit,
         });
 
@@ -333,24 +332,17 @@ export async function getTrendingProducts(
 export async function getNewArrivals(
   limit: number = 8
 ): Promise<Product[]> {
-  // المنتجات المحددة كـ "وصل حديثًا"
   const markedProducts = await prisma.product.findMany({
     where: {
       isAvailable: true,
       isNew: true,
     },
-
     orderBy: {
       createdAt: "desc",
     },
-
     take: limit,
   });
 
-  /*
-   * إذا لا يوجد أي منتج عليه isNew
-   * نستخدم أحدث المنتجات كبديل.
-   */
   const products =
     markedProducts.length > 0
       ? markedProducts
@@ -358,11 +350,9 @@ export async function getNewArrivals(
           where: {
             isAvailable: true,
           },
-
           orderBy: {
             createdAt: "desc",
           },
-
           take: limit,
         });
 
@@ -383,18 +373,14 @@ export async function getRelatedProducts(
   const products = await prisma.product.findMany({
     where: {
       category,
-
       isAvailable: true,
-
       id: {
         not: productId,
       },
     },
-
     orderBy: {
       createdAt: "desc",
     },
-
     take: limit,
   });
 
@@ -419,7 +405,6 @@ export async function searchProducts(
   const products = await prisma.product.findMany({
     where: {
       isAvailable: true,
-
       OR: [
         {
           name: {
@@ -427,14 +412,12 @@ export async function searchProducts(
             mode: "insensitive",
           },
         },
-
         {
           description: {
             contains: value,
             mode: "insensitive",
           },
         },
-
         {
           category: {
             contains: value,
@@ -443,7 +426,6 @@ export async function searchProducts(
         },
       ],
     },
-
     orderBy: {
       createdAt: "desc",
     },

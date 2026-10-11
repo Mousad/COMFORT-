@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
@@ -10,27 +11,27 @@ export async function GET() {
       },
     });
 
-    const productCounts = await prisma.product.groupBy({
-      by: ["category"],
-      _count: {
-        _all: true,
+    const products = await prisma.product.findMany({
+      select: {
+        category: true,
       },
     });
 
-    const countMap = new Map(
-      productCounts.map((item) => [
-        item.category,
-        item._count._all,
-      ])
-    );
+    const countMap = new Map<string, number>();
 
-    const categoriesWithCount = categories.map(
-      (category) => ({
-        ...category,
-        productsCount:
-          countMap.get(category.name) || 0,
-      })
-    );
+    for (const product of products) {
+      const categoryName = product.category.trim();
+
+      countMap.set(
+        categoryName,
+        (countMap.get(categoryName) || 0) + 1
+      );
+    }
+
+    const categoriesWithCount = categories.map((category) => ({
+      ...category,
+      productsCount: countMap.get(category.name.trim()) || 0,
+    }));
 
     return NextResponse.json(
       {
@@ -60,7 +61,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    // 🔐 إضافة التصنيفات للـ Admin فقط
     await requireAdmin();
 
     const body = await request.json();
@@ -96,9 +96,7 @@ export async function POST(request: Request) {
           success: false,
           message: "اسم التصنيف مطلوب",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -108,18 +106,13 @@ export async function POST(request: Request) {
           success: false,
           message: "الرابط المختصر مطلوب",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    const existingName =
-      await prisma.category.findFirst({
-        where: {
-          name,
-        },
-      });
+    const existingName = await prisma.category.findFirst({
+      where: { name },
+    });
 
     if (existingName) {
       return NextResponse.json(
@@ -127,18 +120,13 @@ export async function POST(request: Request) {
           success: false,
           message: "يوجد تصنيف بنفس الاسم بالفعل",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
-    const existingSlug =
-      await prisma.category.findUnique({
-        where: {
-          slug,
-        },
-      });
+    const existingSlug = await prisma.category.findUnique({
+      where: { slug },
+    });
 
     if (existingSlug) {
       return NextResponse.json(
@@ -146,22 +134,19 @@ export async function POST(request: Request) {
           success: false,
           message: "الرابط المختصر مستخدم بالفعل",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
-    const category =
-      await prisma.category.create({
-        data: {
-          name,
-          slug,
-          description: description || null,
-          image: image || null,
-          isActive,
-        },
-      });
+    const category = await prisma.category.create({
+      data: {
+        name,
+        slug,
+        description: description || null,
+        image: image || null,
+        isActive,
+      },
+    });
 
     return NextResponse.json(
       {
@@ -172,9 +157,7 @@ export async function POST(request: Request) {
           productsCount: 0,
         },
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
   } catch (error) {
     console.error("POST category error:", error);
@@ -184,9 +167,7 @@ export async function POST(request: Request) {
         success: false,
         message: "غير مصرح لك بإضافة التصنيفات",
       },
-      {
-        status: 401,
-      }
+      { status: 401 }
     );
   }
 }

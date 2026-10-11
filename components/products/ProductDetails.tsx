@@ -442,60 +442,62 @@ export default function ProductDetails({
             </div>
 
             {/* Service Information */}
-            <div className="mt-8 border-y border-black/10">
+            
+<div className="mt-8 grid grid-cols-3 border-y border-black/10">
+  <div className="flex flex-col items-center px-2 py-5 text-center sm:flex-row sm:items-start sm:gap-3 sm:text-right">
+    <Truck
+      size={19}
+      strokeWidth={1.3}
+      className="shrink-0"
+    />
 
-              <div className="flex items-center gap-4 border-b border-black/10 py-4">
-                <Truck
-                  size={19}
-                  strokeWidth={1.3}
-                />
+    <div className="mt-2 sm:mt-0">
+      <p className="text-xs font-medium">
+        شحن سريع
+      </p>
 
-                <div>
-                  <p className="text-xs font-medium">
-                    شحن سريع
-                  </p>
+      <p className="mt-1 text-[10px] leading-5 text-black/45 sm:text-[11px]">
+        يتم تجهيز طلبك بعناية للشحن.
+      </p>
+    </div>
+  </div>
 
-                  <p className="mt-1 text-[11px] text-black/45">
-                    يتم تجهيز طلبك بعناية للشحن.
-                  </p>
-                </div>
-              </div>
+  <div className="flex flex-col items-center border-x border-black/10 px-2 py-5 text-center sm:flex-row sm:items-start sm:gap-3 sm:text-right">
+    <ShieldCheck
+      size={19}
+      strokeWidth={1.3}
+      className="shrink-0"
+    />
 
-              <div className="flex items-center gap-4 border-b border-black/10 py-4">
-                <ShieldCheck
-                  size={19}
-                  strokeWidth={1.3}
-                />
+    <div className="mt-2 sm:mt-0">
+      <p className="text-xs font-medium">
+        منتجات أصلية
+      </p>
 
-                <div>
-                  <p className="text-xs font-medium">
-                    منتجات أصلية
-                  </p>
+      <p className="mt-1 text-[10px] leading-5 text-black/45 sm:text-[11px]">
+        جودة مختارة بعناية.
+      </p>
+    </div>
+  </div>
 
-                  <p className="mt-1 text-[11px] text-black/45">
-                    جودة مختارة بعناية.
-                  </p>
-                </div>
-              </div>
+  <div className="flex flex-col items-center px-2 py-5 text-center sm:flex-row sm:items-start sm:gap-3 sm:text-right">
+    <RotateCcw
+      size={19}
+      strokeWidth={1.3}
+      className="shrink-0"
+    />
 
-              <div className="flex items-center gap-4 py-4">
-                <RotateCcw
-                  size={19}
-                  strokeWidth={1.3}
-                />
+    <div className="mt-2 sm:mt-0">
+      <p className="text-xs font-medium">
+        خدمة ما بعد البيع
+      </p>
 
-                <div>
-                  <p className="text-xs font-medium">
-                    خدمة ما بعد البيع
-                  </p>
-
-                  <p className="mt-1 text-[11px] text-black/45">
-                    تواصلي معنا لأي استفسار حول طلبك.
-                  </p>
-                </div>
-              </div>
-
-            </div>
+      <p className="mt-1 text-[10px] leading-5 text-black/45 sm:text-[11px]">
+        تواصلي معنا لأي استفسار حول طلبك.
+      </p>
+    </div>
+  </div>
+</div>
 
           </div>
         </div>
@@ -511,9 +513,7 @@ export default function ProductDetails({
           <div className="grid gap-10 md:grid-cols-3 md:gap-14">
 
             <div>
-              <p className="mb-3 text-[10px] tracking-[0.18em] text-black/40">
-                PRODUCT
-              </p>
+            
 
               <h2 className="font-serif text-3xl md:text-4xl">
                 تفاصيل المنتج
@@ -539,17 +539,18 @@ export default function ProductDetails({
                   </p>
                 </div>
 
-                {product.size && (
-                  <div>
-                    <p className="text-[11px] text-black/40">
-                      الحجم
-                    </p>
+               {(product.category === "عطور حريمي" ||
+  product.category === "عطور رجالي") && (
+  <div>
+    <p className="text-[11px] text-black/40">
+      الحجم
+    </p>
 
-                    <p className="mt-1 text-sm">
-                      {product.size}
-                    </p>
-                  </div>
-                )}
+    <p className="mt-1 text-sm">
+      100 ML
+    </p>
+  </div>
+)}
 
                 <div>
                   <p className="text-[11px] text-black/40">
@@ -595,9 +596,7 @@ export default function ProductDetails({
             <div className="mb-7 flex items-end justify-between">
 
               <div>
-                <p className="mb-2 text-[10px] tracking-[0.18em] text-black/40">
-                  YOU MAY ALSO LIKE
-                </p>
+               
 
                 <h2 className="font-serif text-3xl md:text-4xl">
                   قد يعجبكِ أيضًا
