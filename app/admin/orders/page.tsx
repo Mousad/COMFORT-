@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -10,9 +11,11 @@ import {
   Truck,
   User,
   XCircle,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type OrderItem = {
   id: string;
@@ -25,24 +28,60 @@ type OrderItem = {
 type Order = {
   id: string;
   orderNumber: string;
-
   customerName: string;
   customerPhone: string;
-
   whatsappCountryCode: string;
   whatsappPhone: string;
-
   city: string;
   area: string;
   address: string;
   notes: string | null;
-
   total: number;
   status: string;
   createdAt: string;
-
   items: OrderItem[];
 };
+
+type OrdersResponse = {
+  orders?: Order[];
+  message?: string;
+  error?: string;
+};
+
+type UpdateOrderResponse = {
+  order?: Order;
+  message?: string;
+  error?: string;
+};
+
+/*
+ * إنشاء نغمة تنبيه باستخدام المتصفح نفسه.
+ * لا تحتاج إلى ملف صوتي أو مكتبة خارجية.
+ */
+function playNotificationSound(context: AudioContext) {
+  if (context.state !== "running") return;
+
+  const now = context.currentTime;
+
+  [880, 1174].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const start = now + index * 0.22;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, start);
+
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.22, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+
+    oscillator.start(start);
+    oscillator.stop(start + 0.19);
+  });
+}
 
 const filters = [
   { key: "all", label: "كل الطلبات" },
@@ -58,22 +97,17 @@ function getStatusStyle(status: string) {
   switch (status) {
     case "جديد":
       return "bg-blue-50 text-blue-700";
-
     case "جاري التنفيذ":
       return "bg-amber-50 text-amber-700";
-
     case "جاهز للشحن":
       return "bg-orange-50 text-orange-700";
-
     case "تم الشحن":
       return "bg-purple-50 text-purple-700";
-
     case "تم التسليم":
       return "bg-green-50 text-green-700";
-
     case "ملغي":
+    case "ملغى":
       return "bg-red-50 text-red-700";
-
     default:
       return "bg-gray-50 text-gray-700";
   }
@@ -83,22 +117,16 @@ function getStatusIcon(status: string) {
   switch (status) {
     case "جديد":
       return <Clock size={15} />;
-
     case "جاري التنفيذ":
-      return <Package size={15} />;
-
     case "جاهز للشحن":
       return <Package size={15} />;
-
     case "تم الشحن":
       return <Truck size={15} />;
-
     case "تم التسليم":
       return <CheckCircle size={15} />;
-
     case "ملغي":
+    case "ملغى":
       return <XCircle size={15} />;
-
     default:
       return <Package size={15} />;
   }
@@ -108,16 +136,12 @@ function getActionText(status: string) {
   switch (status) {
     case "جديد":
       return "تنفيذ الطلب";
-
     case "جاري التنفيذ":
       return "تم تجهيز الطلب";
-
     case "جاهز للشحن":
       return "تم الشحن";
-
     case "تم الشحن":
       return "تم التسليم";
-
     default:
       return null;
   }
@@ -127,23 +151,25 @@ function getNextStatus(status: string) {
   switch (status) {
     case "جديد":
       return "جاري التنفيذ";
-
     case "جاري التنفيذ":
       return "جاهز للشحن";
-
     case "جاهز للشحن":
       return "تم الشحن";
-
     case "تم الشحن":
       return "تم التسليم";
-
     default:
       return null;
   }
 }
 
 function formatDate(date: string) {
-  return new Date(date).toLocaleString("ar-EG", {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "تاريخ غير متاح";
+  }
+
+  return parsedDate.toLocaleString("ar-EG", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -152,23 +178,97 @@ function formatDate(date: string) {
   });
 }
 
+/*
+ * قراءة استجابة API بأمان، حتى لو كانت فارغة
+ * أو لم تكن بصيغة JSON.
+ */
+async function readApiResponse<T>(
+  response: Response
+): Promise<T> {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    if (!response.ok) {
+      throw new Error(
+        `فشل الاتصال بالسيرفر (HTTP ${response.status}).`
+      );
+    }
+
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    throw new Error(
+      `السيرفر رجّع استجابة غير صالحة (HTTP ${response.status}).`
+    );
+  }
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState("all");
-
   const [search, setSearch] = useState("");
-
   const [error, setError] = useState("");
 
   const [updatingOrderId, setUpdatingOrderId] =
     useState<string | null>(null);
 
-  const [newOrderAlert, setNewOrderAlert] =
-    useState(false);
+  const [newOrderAlert, setNewOrderAlert] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [latestNewOrderNumber, setLatestNewOrderNumber] =
+    useState("");
 
+  /*
+   * الاحتفاظ بمعرّفات الطلبات التي سبق رصدها،
+   * حتى لا تتكرر النغمة لنفس الطلب.
+   *
+   * أول تحميل يحدد الطلبات الموجودة فقط،
+   * ولا يعتبرها طلبات جديدة وصلت للتو.
+   */
+  const knownOrderIdsRef = useRef<Set<string> | null>(null);
+  const soundEnabledRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  /*
+   * تفعيل الصوت أو إيقافه.
+   * أول ضغطة تشغّل نغمة تجريبية للتأكد من عمل الصوت.
+   */
+  const toggleSound = async () => {
+    if (soundEnabledRef.current) {
+      soundEnabledRef.current = false;
+      setSoundEnabled(false);
+      return;
+    }
+
+    try {
+      const context =
+        audioContextRef.current ?? new AudioContext();
+
+      audioContextRef.current = context;
+
+      await context.resume();
+
+      soundEnabledRef.current = true;
+      setSoundEnabled(true);
+
+      playNotificationSound(context);
+    } catch (error) {
+      console.error("Enable notification sound error:", error);
+
+      setError(
+        "تعذر تفعيل الصوت. تأكد من السماح بالصوت في المتصفح ثم حاول مرة أخرى."
+      );
+    }
+  };
+
+  /*
+   * جلب الطلبات واكتشاف أي طلب جديد.
+   */
   const fetchOrders = useCallback(
     async (showLoader = false) => {
       try {
@@ -176,21 +276,75 @@ export default function AdminOrdersPage() {
           setRefreshing(true);
         }
 
-        setError("");
-
         const response = await fetch("/api/orders", {
           cache: "no-store",
         });
 
-        const data = await response.json();
+        const data =
+          await readApiResponse<OrdersResponse>(response);
 
         if (!response.ok) {
           throw new Error(
-            data.message || "حدث خطأ أثناء جلب الطلبات"
+            data.message ||
+              data.error ||
+              `حدث خطأ أثناء جلب الطلبات (HTTP ${response.status})`
           );
         }
 
-        setOrders(data.orders || []);
+        if (!Array.isArray(data.orders)) {
+          throw new Error(
+            "استجابة الطلبات غير صحيحة. تحقق من API الطلبات."
+          );
+        }
+
+        const incomingOrders = data.orders;
+        const knownIds = knownOrderIdsRef.current;
+
+        if (knownIds === null) {
+          // أول تحميل: تسجيل الموجود دون إصدار تنبيه.
+          knownOrderIdsRef.current = new Set(
+            incomingOrders.map((order) => order.id)
+          );
+        } else {
+          const arrivedOrders = incomingOrders.filter(
+            (order) => !knownIds.has(order.id)
+          );
+
+          if (arrivedOrders.length > 0) {
+            // تسجيل الطلبات قبل أي تحديث آخر لمنع تكرار التنبيه.
+            arrivedOrders.forEach((order) => {
+              knownIds.add(order.id);
+            });
+
+            setNewOrderAlert(true);
+            setLatestNewOrderNumber(
+              arrivedOrders[0].orderNumber
+            );
+
+            // تشغيل الصوت فقط إذا فعّله المستخدم.
+            if (
+              soundEnabledRef.current &&
+              audioContextRef.current
+            ) {
+              try {
+                playNotificationSound(audioContextRef.current);
+              } catch (soundError) {
+                console.error(
+                  "Notification sound error:",
+                  soundError
+                );
+              }
+            }
+          }
+
+          // حفظ جميع المعرّفات التي ظهرت، حتى لا تتكرر النغمة.
+          incomingOrders.forEach((order) => {
+            knownIds.add(order.id);
+          });
+        }
+
+        setOrders(incomingOrders);
+        setError("");
       } catch (error) {
         console.error("Fetch orders error:", error);
 
@@ -208,29 +362,31 @@ export default function AdminOrdersPage() {
   );
 
   /*
-   * أول تحميل
+   * أول تحميل.
    */
   useEffect(() => {
-    fetchOrders();
+    void fetchOrders();
   }, [fetchOrders]);
 
   /*
-   * تحديث الطلبات كل 10 ثواني
+   * فحص الطلبات كل 10 ثوانٍ.
    */
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchOrders();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchOrders();
+      }
     }, 10000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [fetchOrders]);
 
   /*
-   * تحديث عند الرجوع للتبويب
+   * تحديث القائمة عند الرجوع إلى التبويب.
    */
   useEffect(() => {
     const handleFocus = () => {
-      fetchOrders();
+      void fetchOrders();
     };
 
     window.addEventListener("focus", handleFocus);
@@ -241,22 +397,18 @@ export default function AdminOrdersPage() {
   }, [fetchOrders]);
 
   /*
-   * الطلبات الجديدة
+   * إظهار تنبيه مرئي طالما توجد طلبات بحالة "جديد".
    */
   useEffect(() => {
-    if (loading) return;
-
-    const newOrders = orders.filter(
-      (order) => order.status === "جديد"
-    );
-
-    if (newOrders.length > 0) {
-      setNewOrderAlert(true);
+    if (!loading) {
+      setNewOrderAlert(
+        orders.some((order) => order.status === "جديد")
+      );
     }
   }, [orders, loading]);
 
   /*
-   * تحديث حالة طلب مباشرة
+   * تحديث حالة الطلب مباشرة.
    */
   const updateOrderStatus = async (
     orderId: string,
@@ -267,37 +419,41 @@ export default function AdminOrdersPage() {
       setError("");
 
       const response = await fetch(
-        `/api/orders/${orderId}`,
+        `/api/orders/${encodeURIComponent(orderId)}`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            status,
-          }),
+          body: JSON.stringify({ status }),
+          cache: "no-store",
         }
       );
 
-      const data = await response.json();
+      const data =
+        await readApiResponse<UpdateOrderResponse>(response);
 
       if (!response.ok) {
         throw new Error(
           data.message ||
-            "حدث خطأ أثناء تحديث حالة الطلب"
+            data.error ||
+            `فشل تحديث حالة الطلب (HTTP ${response.status})`
+        );
+      }
+
+      if (!data.order) {
+        throw new Error(
+          "السيرفر لم يُرجع بيانات الطلب المحدّثة. تحقق من API تحديث الطلب."
         );
       }
 
       setOrders((currentOrders) =>
         currentOrders.map((order) =>
-          order.id === orderId ? data.order : order
+          order.id === orderId ? data.order! : order
         )
       );
     } catch (error) {
-      console.error(
-        "Update order status error:",
-        error
-      );
+      console.error("Update order status error:", error);
 
       setError(
         error instanceof Error
@@ -310,7 +466,7 @@ export default function AdminOrdersPage() {
   };
 
   /*
-   * الإحصائيات
+   * الإحصائيات.
    */
   const counts = useMemo(() => {
     return {
@@ -321,33 +477,31 @@ export default function AdminOrdersPage() {
       ).length,
 
       processing: orders.filter(
-        (order) =>
-          order.status === "جاري التنفيذ"
+        (order) => order.status === "جاري التنفيذ"
       ).length,
 
       ready: orders.filter(
-        (order) =>
-          order.status === "جاهز للشحن"
+        (order) => order.status === "جاهز للشحن"
       ).length,
 
       shipped: orders.filter(
-        (order) =>
-          order.status === "تم الشحن"
+        (order) => order.status === "تم الشحن"
       ).length,
 
       delivered: orders.filter(
-        (order) =>
-          order.status === "تم التسليم"
+        (order) => order.status === "تم التسليم"
       ).length,
 
       cancelled: orders.filter(
-        (order) => order.status === "ملغي"
+        (order) =>
+          order.status === "ملغي" ||
+          order.status === "ملغى"
       ).length,
     };
   }, [orders]);
 
   /*
-   * فلترة + بحث
+   * الفلترة والبحث.
    */
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -355,7 +509,9 @@ export default function AdminOrdersPage() {
     return orders.filter((order) => {
       const matchesFilter =
         activeFilter === "all" ||
-        order.status === activeFilter;
+        order.status === activeFilter ||
+        (activeFilter === "ملغي" &&
+          order.status === "ملغى");
 
       if (!matchesFilter) {
         return false;
@@ -366,22 +522,22 @@ export default function AdminOrdersPage() {
       }
 
       return (
-        order.orderNumber
+        (order.orderNumber || "")
           .toLowerCase()
           .includes(query) ||
-        order.customerName
+        (order.customerName || "")
           .toLowerCase()
           .includes(query) ||
-        order.customerPhone
+        (order.customerPhone || "")
           .toLowerCase()
           .includes(query) ||
-        order.city
+        (order.city || "")
           .toLowerCase()
           .includes(query) ||
         (order.area || "")
           .toLowerCase()
           .includes(query) ||
-        order.address
+        (order.address || "")
           .toLowerCase()
           .includes(query)
       );
@@ -389,7 +545,7 @@ export default function AdminOrdersPage() {
   }, [orders, activeFilter, search]);
 
   /*
-   * ترتيب: الأحدث أولًا
+   * ترتيب الأحدث أولًا.
    */
   const sortedOrders = useMemo(() => {
     return [...filteredOrders].sort(
@@ -423,7 +579,7 @@ export default function AdminOrdersPage() {
     >
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-black/5 bg-[#f0ede8]/95 backdrop-blur-md">
-        <div className="mx-auto flex min-h-[76px] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[76px] max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-xs text-black/40">
               COMFORT KEEPERS
@@ -434,43 +590,76 @@ export default function AdminOrdersPage() {
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchOrders(true)}
-            disabled={refreshing}
-            className="flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-medium shadow-sm transition hover:shadow-md disabled:opacity-50"
-          >
-            <RefreshCw
-              size={16}
-              className={
-                refreshing ? "animate-spin" : ""
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void toggleSound()}
+              aria-pressed={soundEnabled}
+              title={
+                soundEnabled
+                  ? "إيقاف صوت التنبيه"
+                  : "تفعيل صوت التنبيه"
               }
-            />
+              className={`flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium shadow-sm transition sm:px-4 ${
+                soundEnabled
+                  ? "bg-green-100 text-green-800"
+                  : "bg-white text-black/70 hover:shadow-md"
+              }`}
+            >
+              {soundEnabled ? (
+                <Volume2 size={17} />
+              ) : (
+                <VolumeX size={17} />
+              )}
 
-            <span className="hidden sm:inline">
-              تحديث
-            </span>
-          </button>
+              <span className="hidden sm:inline">
+                {soundEnabled
+                  ? "الصوت مفعّل"
+                  : "تفعيل الصوت"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void fetchOrders(true)}
+              disabled={refreshing}
+              className="flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-medium shadow-sm transition hover:shadow-md disabled:opacity-50"
+            >
+              <RefreshCw
+                size={16}
+                className={refreshing ? "animate-spin" : ""}
+              />
+
+              <span className="hidden sm:inline">تحديث</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        {/* New order alert */}
+        {/* تنبيه الطلبات الجديدة */}
         {newOrderAlert && counts.new > 0 && (
-          <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center">
+          <div
+            role="status"
+            className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center"
+          >
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-600">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-blue-600">
                 <Package size={19} />
               </div>
 
               <div>
                 <p className="font-semibold text-blue-900">
-                  لديك طلبات جديدة
+                  {latestNewOrderNumber
+                    ? `وصل طلب جديد رقم ${latestNewOrderNumber}`
+                    : "لديك طلبات جديدة"}
                 </p>
 
                 <p className="mt-1 text-xs text-blue-700">
-                  يوجد {counts.new} طلب لم يتم
-                  تجهيزه بعد.
+                  يوجد {counts.new} طلب لم يتم تجهيزه بعد.
+                  {soundEnabled
+                    ? " التنبيه الصوتي مفعّل."
+                    : " فعّل الصوت من أعلى الصفحة لسماع النغمة عند وصول طلب جديد."}
                 </p>
               </div>
             </div>
@@ -488,14 +677,17 @@ export default function AdminOrdersPage() {
           </div>
         )}
 
-        {/* Error */}
+        {/* رسائل الخطأ */}
         {error && (
-          <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div
+            role="alert"
+            className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"
+          >
             <span>{error}</span>
 
             <button
               type="button"
-              onClick={() => fetchOrders(true)}
+              onClick={() => void fetchOrders(true)}
               className="shrink-0 font-medium underline"
             >
               إعادة المحاولة
@@ -503,7 +695,7 @@ export default function AdminOrdersPage() {
           </div>
         )}
 
-        {/* Statistics */}
+        {/* الإحصائيات */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
           <StatCard
             label="كل الطلبات"
@@ -522,61 +714,42 @@ export default function AdminOrdersPage() {
           <StatCard
             label="جاري التنفيذ"
             value={counts.processing}
-            active={
-              activeFilter === "جاري التنفيذ"
-            }
-            onClick={() =>
-              setActiveFilter("جاري التنفيذ")
-            }
+            active={activeFilter === "جاري التنفيذ"}
+            onClick={() => setActiveFilter("جاري التنفيذ")}
           />
 
           <StatCard
             label="جاهزة للشحن"
             value={counts.ready}
-            active={
-              activeFilter === "جاهز للشحن"
-            }
-            onClick={() =>
-              setActiveFilter("جاهز للشحن")
-            }
+            active={activeFilter === "جاهز للشحن"}
+            onClick={() => setActiveFilter("جاهز للشحن")}
           />
 
           <StatCard
             label="تم الشحن"
             value={counts.shipped}
-            active={
-              activeFilter === "تم الشحن"
-            }
-            onClick={() =>
-              setActiveFilter("تم الشحن")
-            }
+            active={activeFilter === "تم الشحن"}
+            onClick={() => setActiveFilter("تم الشحن")}
           />
 
           <StatCard
             label="تم التسليم"
             value={counts.delivered}
-            active={
-              activeFilter === "تم التسليم"
-            }
-            onClick={() =>
-              setActiveFilter("تم التسليم")
-            }
+            active={activeFilter === "تم التسليم"}
+            onClick={() => setActiveFilter("تم التسليم")}
           />
 
           <StatCard
             label="ملغية"
             value={counts.cancelled}
             active={activeFilter === "ملغي"}
-            onClick={() =>
-              setActiveFilter("ملغي")
-            }
+            onClick={() => setActiveFilter("ملغي")}
           />
         </div>
 
-        {/* Search + filters */}
+        {/* البحث والفلاتر */}
         <section className="mb-6 rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            {/* Search */}
             <div className="relative w-full lg:max-w-md">
               <Search
                 size={18}
@@ -586,23 +759,18 @@ export default function AdminOrdersPage() {
               <input
                 type="search"
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="ابحث برقم الطلب أو اسم العميل أو الهاتف أو المنطقة..."
                 className="h-12 w-full rounded-xl border border-black/10 bg-[#faf9f7] pr-11 pl-4 text-sm outline-none transition focus:border-[#b89b72] focus:ring-2 focus:ring-[#b89b72]/10"
               />
             </div>
 
-            {/* Filters */}
             <div className="flex gap-2 overflow-x-auto pb-1">
               {filters.map((filter) => (
                 <button
                   key={filter.key}
                   type="button"
-                  onClick={() =>
-                    setActiveFilter(filter.key)
-                  }
+                  onClick={() => setActiveFilter(filter.key)}
                   className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-medium transition ${
                     activeFilter === filter.key
                       ? "bg-[#171717] text-white"
@@ -616,26 +784,24 @@ export default function AdminOrdersPage() {
           </div>
         </section>
 
-        {/* Results */}
+        {/* عدد النتائج */}
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">
               {activeFilter === "all"
                 ? "جميع الطلبات"
                 : filters.find(
-                    (filter) =>
-                      filter.key === activeFilter
+                    (filter) => filter.key === activeFilter
                   )?.label}
             </h2>
 
             <p className="mt-1 text-xs text-black/40">
-              عرض {sortedOrders.length} من{" "}
-              {orders.length} طلب
+              عرض {sortedOrders.length} من {orders.length} طلب
             </p>
           </div>
         </div>
 
-        {/* Empty */}
+        {/* الطلبات */}
         {sortedOrders.length === 0 ? (
           <div className="rounded-2xl border border-black/5 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#f0ede8] text-black/25">
@@ -655,14 +821,9 @@ export default function AdminOrdersPage() {
         ) : (
           <div className="space-y-3">
             {sortedOrders.map((order) => {
-              const nextStatus =
-                getNextStatus(order.status);
-
-              const actionText =
-                getActionText(order.status);
-
-              const updating =
-                updatingOrderId === order.id;
+              const nextStatus = getNextStatus(order.status);
+              const actionText = getActionText(order.status);
+              const updating = updatingOrderId === order.id;
 
               return (
                 <article
@@ -671,7 +832,7 @@ export default function AdminOrdersPage() {
                 >
                   <div className="p-4 sm:p-5">
                     <div className="flex flex-col gap-5 xl:flex-row xl:items-center">
-                      {/* Order info */}
+                      {/* معلومات الطلب */}
                       <div className="flex min-w-0 flex-1 items-start gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f0ede8] text-[#b89b72]">
                           <Package size={21} />
@@ -691,29 +852,21 @@ export default function AdminOrdersPage() {
                                 order.status
                               )}`}
                             >
-                              {getStatusIcon(
-                                order.status
-                              )}
-
+                              {getStatusIcon(order.status)}
                               {order.status}
                             </span>
                           </div>
 
                           <p className="mt-2 text-sm text-black/50">
-                            {formatDate(
-                              order.createdAt
-                            )}
+                            {formatDate(order.createdAt)}
                           </p>
                         </div>
                       </div>
 
-                      {/* Customer */}
+                      {/* بيانات العميل */}
                       <div className="min-w-[220px]">
                         <div className="flex items-center gap-2">
-                          <User
-                            size={15}
-                            className="text-black/30"
-                          />
+                          <User size={15} className="text-black/30" />
 
                           <span className="text-sm font-medium">
                             {order.customerName}
@@ -726,9 +879,7 @@ export default function AdminOrdersPage() {
 
                         <p className="mt-1 text-xs text-black/40">
                           {order.city}
-                          {order.area
-                            ? ` — ${order.area}`
-                            : ""}
+                          {order.area ? ` — ${order.area}` : ""}
                         </p>
 
                         {order.address && (
@@ -738,85 +889,73 @@ export default function AdminOrdersPage() {
                         )}
                       </div>
 
-                      {/* Products */}
+                      {/* المنتجات */}
                       <div className="min-w-[180px]">
                         <p className="text-xs text-black/40">
                           المنتجات
                         </p>
 
                         <p className="mt-1 text-sm font-medium">
-                          {order.items.length}{" "}
-                          منتج
+                          {order.items.length} منتج
                         </p>
 
                         <p className="mt-1 text-xs text-black/40">
                           الكمية:{" "}
                           {order.items.reduce(
-                            (sum, item) =>
-                              sum + item.quantity,
+                            (sum, item) => sum + item.quantity,
                             0
                           )}
                         </p>
                       </div>
 
-                      {/* Total */}
+                      {/* الإجمالي */}
                       <div className="min-w-[130px]">
                         <p className="text-xs text-black/40">
                           الإجمالي
                         </p>
 
                         <p className="mt-1 text-lg font-semibold">
-                          {Number(
-                            order.total
-                          ).toLocaleString(
-                            "ar-EG"
-                          )}{" "}
-                          جنيه
+                          {Number(order.total).toLocaleString("ar-EG")} جنيه
                         </p>
                       </div>
 
-                      {/* Actions */}
+                      {/* الإجراءات */}
                       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                         <Link
                           href={`/admin/orders/${order.id}`}
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f0ede8] px-4 text-xs font-medium transition hover:bg-black/10"
                         >
                           التفاصيل
-
-                          <ChevronLeft
-                            size={15}
-                          />
+                          <ChevronLeft size={15} />
                         </Link>
 
-                        {nextStatus &&
-                          actionText && (
-                            <button
-                              type="button"
-                              disabled={updating}
-                              onClick={() =>
-                                updateOrderStatus(
-                                  order.id,
-                                  nextStatus
-                                )
-                              }
-                              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#171717] px-4 text-xs font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {updating ? (
-                                <span className="flex items-center gap-2">
-                                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-
-                                  جاري...
-                                </span>
-                              ) : (
-                                actionText
-                              )}
-                            </button>
-                          )}
+                        {nextStatus && actionText && (
+                          <button
+                            type="button"
+                            disabled={updating}
+                            onClick={() =>
+                              void updateOrderStatus(
+                                order.id,
+                                nextStatus
+                              )
+                            }
+                            className="inline-flex h-10 items-center justify-center rounded-xl bg-[#171717] px-4 text-xs font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {updating ? (
+                              <span className="flex items-center gap-2">
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                جاري...
+                              </span>
+                            ) : (
+                              actionText
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* New order indicator */}
+                  {/* مؤشر الطلب الجديد */}
                   {order.status === "جديد" && (
                     <div className="h-1 bg-blue-500" />
                   )}
@@ -831,7 +970,7 @@ export default function AdminOrdersPage() {
 }
 
 /*
- * بطاقة الإحصائيات
+ * بطاقة الإحصائيات.
  */
 function StatCard({
   label,
@@ -854,13 +993,9 @@ function StatCard({
           : "border-black/5 bg-white hover:-translate-y-0.5 hover:shadow-md"
       }`}
     >
-      <p className="text-xs text-black/40">
-        {label}
-      </p>
+      <p className="text-xs text-black/40">{label}</p>
 
-      <p className="mt-2 text-2xl font-semibold">
-        {value}
-      </p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
     </button>
   );
 }

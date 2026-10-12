@@ -1,578 +1,170 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin-auth";
+import { getAdminSession } from "@/lib/admin-auth";
 
-const STORE_WHATSAPP = "201157499163";
+const VALID_STATUSES = [
+  "جديد",
+  "جاري التنفيذ",
+  "جاهز للشحن",
+  "تم الشحن",
+  "تم التسليم",
+  "ملغي",
+] as const;
 
-const HADAAYEQ_AL_AHRAM_SHIPPING = 30;
-const CAIRO_GIZA_SHIPPING = 70;
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 
-function cleanPhone(value: string) {
-  return value.replace(/\D/g, "");
-}
+async function authorizeAdmin() {
+  const session = await getAdminSession();
 
-function createWhatsAppUrl(message: string) {
-  return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(
-    message
-  )}`;
-}
-
-/**
- * تنظيف النصوص للمقارنة
- */
-function normalizeArabicText(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ة/g, "ه");
-}
-
-/**
- * حساب الشحن حسب المنطقة
- *
- * حدائق الأهرام = 30 جنيه
- * أي مكان آخر في القاهرة أو الجيزة = 70 جنيه
- */
-function calculateShipping(city: string, area: string) {
-  const normalizedCity = normalizeArabicText(city);
-  const normalizedArea = normalizeArabicText(area);
-
-  const isCairo =
-    normalizedCity === "القاهره" ||
-    normalizedCity === "القاهرة";
-
-  const isGiza =
-    normalizedCity === "الجيزه" ||
-    normalizedCity === "الجيزة";
-
-  const isHadayekAlAhram =
-    normalizedArea.includes("حدائق الاهرام") ||
-    normalizedArea.includes("حدايق الاهرام");
-
-  if (isHadayekAlAhram && (isCairo || isGiza)) {
-    return HADAAYEQ_AL_AHRAM_SHIPPING;
+  if (!session) {
+    return false;
   }
 
-  if (isCairo || isGiza) {
-    return CAIRO_GIZA_SHIPPING;
-  }
+  const admin = await prisma.admin.findUnique({
+    where: { id: session.adminId },
+    select: { id: true, isActive: true },
+  });
 
-  // في حالة إرسال مدينة غير القاهرة أو الجيزة
-  // نستخدم سعر القاهرة والجيزة الافتراضي
-  return CAIRO_GIZA_SHIPPING;
+  return Boolean(admin?.isActive);
 }
 
-/**
- * GET
- * جلب كل الطلبات - Admin فقط
- */
-export async function GET() {
+// GET: جلب تفاصيل طلب محدد
+export async function GET(
+  _request: Request,
+  context: RouteContext
+) {
   try {
-    await requireAdmin();
+    if (!(await authorizeAdmin())) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "غير مصرح لك بالوصول إلى الطلبات",
+        },
+        { status: 401 }
+      );
+    }
 
-    const orders = await prisma.order.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        items: true,
-      },
+    const { id } = await context.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { items: true },
     });
+
+    if (!order) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "الطلب غير موجود",
+        },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      orders,
+      order,
     });
   } catch (error) {
-    console.error("Get orders error:", error);
+    console.error("Get order details error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "غير مصرح لك بالوصول إلى الطلبات",
+        message: "حدث خطأ أثناء جلب تفاصيل الطلب",
       },
-      {
-        status: 401,
-      }
+      { status: 500 }
     );
   }
 }
 
-/**
- * POST
- * إنشاء طلب جديد
- * مفتوح للزوار والعملاء
- */
-export async function POST(request: Request) {
+// PATCH: تحديث حالة الطلب
+export async function PATCH(
+  request: Request,
+  context: RouteContext
+) {
   try {
-    const body = await request.json();
-
-    const customer = body.customer;
-    const items = body.items;
-
-    if (!customer) {
+    if (!(await authorizeAdmin())) {
       return NextResponse.json(
         {
           success: false,
-          message: "بيانات العميل مطلوبة",
+          message: "غير مصرح لك بتحديث الطلب",
         },
-        {
-          status: 400,
-        }
+        { status: 401 }
       );
     }
 
-    if (!Array.isArray(items) || items.length === 0) {
+    const { id } = await context.params;
+
+    let body: { status?: unknown };
+
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
         {
           success: false,
-          message: "السلة فارغة",
+          message: "بيانات الطلب المرسلة غير صالحة",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    /* =========================
-       التحقق من بيانات العميل
-    ========================= */
+    const status = body.status;
 
-    const customerName =
-      typeof customer.name === "string"
-        ? customer.name.trim()
-        : "";
-
-    const customerPhone =
-      typeof customer.phone === "string"
-        ? customer.phone.trim()
-        : "";
-
-    const whatsappCountryCode =
-      typeof customer.whatsappCountryCode === "string"
-        ? customer.whatsappCountryCode.trim()
-        : "";
-
-    const whatsappPhone =
-      typeof customer.whatsappPhone === "string"
-        ? customer.whatsappPhone.trim()
-        : "";
-
-    const city =
-      typeof customer.city === "string"
-        ? customer.city.trim()
-        : "";
-
-    const area =
-      typeof customer.area === "string"
-        ? customer.area.trim()
-        : "";
-
-    const address =
-      typeof customer.address === "string"
-        ? customer.address.trim()
-        : "";
-
-    const notes =
-      typeof customer.notes === "string"
-        ? customer.notes.trim()
-        : "";
-
-    if (!customerName) {
+    if (
+      typeof status !== "string" ||
+      !VALID_STATUSES.includes(
+        status as (typeof VALID_STATUSES)[number]
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "اسم العميل مطلوب",
+          message: "حالة الطلب غير صالحة",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    if (!customerPhone) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "رقم الهاتف مطلوب",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!whatsappPhone) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "رقم الواتساب مطلوب",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!city) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "المدينة مطلوبة",
-        },
-        {
-          status: 400
-        }
-      );
-    }
-
-    if (!area) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "المنطقة مطلوبة",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!address) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "العنوان مطلوب",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /* =========================
-       إعدادات المتجر
-    ========================= */
-
-    const storeSettings =
-      await prisma.storeSettings.findUnique({
-        where: {
-          id: 1,
-        },
-      });
-
-    const settings = {
-      acceptOrders:
-        storeSettings?.acceptOrders ?? true,
-
-      currency:
-        storeSettings?.currency || "جنيه",
-
-      storeName:
-        storeSettings?.storeName ||
-        "COMFORT KEEPERS",
-    };
-
-    /* =========================
-       إيقاف استقبال الطلبات
-    ========================= */
-
-    if (!settings.acceptOrders) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "عذراً، استقبال الطلبات متوقف حالياً",
-        },
-        {
-          status: 403,
-        }
-      );
-    }
-
-    /* =========================
-       تنظيف المنتجات
-    ========================= */
-
-    const cleanedItems = items.map(
-      (item: any) => ({
-        id: item.id
-          ? String(item.id)
-          : undefined,
-
-        name:
-          typeof item.name === "string"
-            ? item.name.trim()
-            : "",
-
-        price: Number(item.price),
-
-        quantity: Number(item.quantity),
-
-        image:
-          typeof item.image === "string"
-            ? item.image
-            : null,
-      })
-    );
-
-    /* =========================
-       التحقق من المنتجات
-    ========================= */
-
-    for (const item of cleanedItems) {
-      if (!item.name) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "اسم أحد المنتجات غير صحيح",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      if (
-        !Number.isFinite(item.price) ||
-        item.price < 0
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: `سعر المنتج "${item.name}" غير صحيح`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      if (
-        !Number.isInteger(item.quantity) ||
-        item.quantity <= 0
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: `كمية المنتج "${item.name}" غير صحيحة`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-    }
-
-    /* =========================
-       حساب المنتجات
-    ========================= */
-
-    const subtotal = cleanedItems.reduce(
-      (sum: number, item: any) => {
-        return (
-          sum +
-          item.price * item.quantity
-        );
-      },
-      0
-    );
-
-    /* =========================
-       حساب الشحن
-    ========================= */
-
-    const shipping = calculateShipping(
-      city,
-      area
-    );
-
-    /* =========================
-       الإجمالي النهائي
-    ========================= */
-
-    const total = subtotal + shipping;
-
-    /* =========================
-       إنشاء رقم الطلب
-    ========================= */
-
-    const orderNumber = `CK-${Date.now()
-      .toString()
-      .slice(-6)}`;
-
-    /* =========================
-       إنشاء الطلب
-    ========================= */
-
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-
-        customerName,
-
-        customerPhone:
-          cleanPhone(customerPhone),
-
-        whatsappCountryCode,
-
-        whatsappPhone:
-          cleanPhone(whatsappPhone),
-
-        city,
-
-        area,
-
-        address,
-
-        notes: notes || null,
-
-        subtotal,
-
-        shipping,
-
-        total,
-
-        status: "جديد",
-
-        items: {
-          create: cleanedItems.map(
-            (item: any) => ({
-              productId:
-                item.id || null,
-
-              name: item.name,
-
-              price: item.price,
-
-              quantity: item.quantity,
-
-              image: item.image,
-            })
-          ),
-        },
-      },
-
-      include: {
-        items: true,
-      },
+    const existingOrder = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true },
     });
 
-    /* =========================
-       تجهيز رسالة الواتساب
-    ========================= */
-
-    const productsMessage =
-      order.items
-        .map(
-          (item) =>
-            `• ${item.name} × ${item.quantity} — ${(
-              item.price * item.quantity
-            ).toLocaleString("ar-EG")} ${settings.currency}`
-        )
-        .join("\n");
-
-    const shippingMessage = `${shipping.toLocaleString(
-      "ar-EG"
-    )} ${settings.currency}`;
-
-    const whatsappMessage = `
-طلب جديد من ${settings.storeName}
-
-━━━━━━━━━━━━━━
-رقم الطلب: ${orderNumber}
-━━━━━━━━━━━━━━
-
-👤 العميل:
-${customerName}
-
-📞 الهاتف:
-${customerPhone}
-
-💬 واتساب:
-${whatsappCountryCode} ${whatsappPhone}
-
-📍 المدينة:
-${city}
-
-📌 المنطقة:
-${area}
-
-🏠 العنوان:
-${address}
-
-━━━━━━━━━━━━━━
-🛍️ المنتجات:
-${productsMessage}
-
-━━━━━━━━━━━━━━
-💰 المنتجات:
-${subtotal.toLocaleString(
-      "ar-EG"
-    )} ${settings.currency}
-
-🚚 الشحن:
-${shippingMessage}
-
-💵 الإجمالي:
-${total.toLocaleString(
-      "ar-EG"
-    )} ${settings.currency}
-
-💳 طريقة الدفع:
-الدفع عند الاستلام
-
-${
-  notes
-    ? `📝 ملاحظات:\n${notes}`
-    : ""
-}
-
-━━━━━━━━━━━━━━
-`;
-
-    const whatsappUrl =
-      createWhatsAppUrl(
-        whatsappMessage
+    if (!existingOrder) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "الطلب غير موجود",
+        },
+        { status: 404 }
       );
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+      include: { items: true },
+    });
 
     return NextResponse.json({
       success: true,
-
-      message: "تم إنشاء الطلب بنجاح",
-
-      orderId: order.id,
-
-      orderNumber: order.orderNumber,
-
-      whatsappNumber: STORE_WHATSAPP,
-
-      whatsappUrl,
-
-      subtotal,
-
-      shipping,
-
-      total,
+      message: "تم تحديث حالة الطلب بنجاح",
+      order,
     });
   } catch (error) {
-    console.error(
-      "Create order error:",
-      error
-    );
+    console.error("Update order status error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "حدث خطأ أثناء إنشاء الطلب",
+        message: "حدث خطأ أثناء تحديث حالة الطلب",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
