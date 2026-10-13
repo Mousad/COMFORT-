@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -21,7 +22,6 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-
 type ProductStatus = "available" | "low" | "out";
 
 type Product = {
@@ -36,16 +36,17 @@ type Product = {
   isAvailable?: boolean;
 };
 
+
 const categories = [
   "عطور نسائية",
-  "عطور رجالي",
-  "برفيوم 50 ml",
+  "عطور رجالية",
   "عطور رجالية 50 مل",
-  "عطور نسائية 50 مل",
   "Skin Care",
-  "ماستر بوكس حريمي",
-  "ماستر بوكس رجالي",
+  "عطور نسائية 50 مل",
+  
+  
 ];
+
 
 const normalizeCategory = (value: string) =>
   value.trim().replace(/\s+/g, " ");
@@ -68,7 +69,7 @@ function categoryHref(category: string) {
   )}`;
 }
 
-export default function ProductsPage() {
+function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -409,24 +410,26 @@ export default function ProductsPage() {
       <header className="sticky top-0 z-30 border-b border-[#E7E0D5] bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#8B6F47] text-white shadow-sm">
-              <Package size={24} />
-            </div>
+           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm">
+  <img
+    src="https://i.pinimg.com/736x/67/19/bf/6719bf1f956e3f0d2400c5e679ddabe2.jpg"
+    alt="Comfort Keepers"
+    className="h-full w-full object-contain"
+  />
+</div>
 
             <div className="min-w-0">
               <h1 className="text-lg font-bold sm:text-xl">
                 إدارة المنتجات
               </h1>
 
-              <p className="mt-1 text-xs text-[#8A8175] sm:text-sm">
-                Comfort Keepers
-              </p>
+             
             </div>
           </div>
 
           <Link
             href={newProductHref}
-            className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#29251F] px-3 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#8B6F47] sm:px-5"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-xl  px-3 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#8B6F47] sm:px-5"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">إضافة منتج</span>
@@ -599,7 +602,7 @@ export default function ProductsPage() {
                         </h3>
 
                         <p className="mt-1.5 text-xs text-[#8A8175]">
-                          {count} {count === 1 ? "منتج" : "منتج"}
+                          {count} منتج
                         </p>
                       </div>
 
@@ -701,7 +704,7 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* Compact stock summary, shown only inside a folder */}
+            {/* Stock summary */}
             {!loading && (
               <div className="mb-6 grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border border-[#DCE9DF] bg-white p-3 sm:p-4">
@@ -764,29 +767,12 @@ export default function ProductsPage() {
                 <table className="w-full min-w-[850px]">
                   <thead className="border-b border-[#E7E0D5] bg-[#F8F6F2]">
                     <tr className="text-right text-sm text-[#817667]">
-                      <th className="px-5 py-4 font-semibold">
-                        المنتج
-                      </th>
-
-                      <th className="px-5 py-4 font-semibold">
-                        التصنيف
-                      </th>
-
-                      <th className="px-5 py-4 font-semibold">
-                        السعر
-                      </th>
-
-                      <th className="px-5 py-4 font-semibold">
-                        المخزون
-                      </th>
-
-                      <th className="px-5 py-4 font-semibold">
-                        الحالة
-                      </th>
-
-                      <th className="px-5 py-4 font-semibold">
-                        الإجراءات
-                      </th>
+                      <th className="px-5 py-4 font-semibold">المنتج</th>
+                      <th className="px-5 py-4 font-semibold">التصنيف</th>
+                      <th className="px-5 py-4 font-semibold">السعر</th>
+                      <th className="px-5 py-4 font-semibold">المخزون</th>
+                      <th className="px-5 py-4 font-semibold">الحالة</th>
+                      <th className="px-5 py-4 font-semibold">الإجراءات</th>
                     </tr>
                   </thead>
 
@@ -879,8 +865,7 @@ export default function ProductsPage() {
                             </td>
 
                             <td className="px-5 py-4 font-bold text-[#765D3D]">
-                              {Number(product.price).toLocaleString("ar-EG")}{" "}
-                              جنيه
+                              {Number(product.price).toLocaleString("ar-EG")} جنيه
                             </td>
 
                             <td className="px-5 py-4">
@@ -899,16 +884,9 @@ export default function ProductsPage() {
                                       : "bg-[#FCE8E8] text-[#B33C3C]"
                                 }`}
                               >
-                                {status === "available" && (
-                                  <Check size={14} />
-                                )}
-
-                                {status === "low" && (
-                                  <AlertCircle size={14} />
-                                )}
-
+                                {status === "available" && <Check size={14} />}
+                                {status === "low" && <AlertCircle size={14} />}
                                 {status === "out" && <X size={14} />}
-
                                 {statusText(status)}
                               </span>
                             </td>
@@ -1036,5 +1014,27 @@ export default function ProductsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// الإصلاح الأساسي: وضع المكوّن الذي يستخدم useSearchParams
+// داخل Suspense حتى يستطيع Next.js إكمال عملية البناء.
+export default function ProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          dir="rtl"
+          className="flex min-h-screen items-center justify-center bg-[#F0EDE8] text-[#29251F]"
+        >
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#E7E0D5] border-t-[#8B6F47]" />
+            <p className="font-semibold">جاري تحميل المنتجات...</p>
+          </div>
+        </div>
+      }
+    >
+      <ProductsContent />
+    </Suspense>
   );
 }
