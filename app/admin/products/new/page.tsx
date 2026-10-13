@@ -8,8 +8,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
 
 const categories = [
    "عطور نسائية",
@@ -24,10 +24,18 @@ const categories = [
 
 export default function NewProductPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // إذا فُتحت الصفحة من داخل قسم، نثبت هذا القسم تلقائياً.
+  const requestedCategory = searchParams.get("category");
+  const lockedCategory = categories.find(
+    (category) => category.trim() === requestedCategory?.trim()
+  );
+  const isCategoryLocked = Boolean(lockedCategory);
 
   const [form, setForm] = useState({
     name: "",
-    category: "برفيوم حريمي",
+    category: lockedCategory ?? categories[0],
     price: "",
     stock: "",
     image: "",
@@ -36,6 +44,15 @@ export default function NewProductPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (lockedCategory) {
+      setForm((current) => ({
+        ...current,
+        category: lockedCategory,
+      }));
+    }
+  }, [lockedCategory]);
 
   function handleChange(
     field: keyof typeof form,
@@ -117,7 +134,11 @@ export default function NewProductPage() {
         );
       }
 
-      router.push("/admin/products");
+      const destination = lockedCategory
+        ? `/admin/products?category=${encodeURIComponent(lockedCategory.trim())}`
+        : "/admin/products";
+
+      router.push(destination);
       router.refresh();
     } catch (error) {
       console.error("Create product error:", error);
@@ -144,7 +165,11 @@ export default function NewProductPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link
-              href="/admin/products"
+              href={
+                lockedCategory
+                  ? `/admin/products?category=${encodeURIComponent(lockedCategory.trim())}`
+                  : "/admin/products"
+              }
               className="flex h-11 w-11 items-center justify-center rounded-xl border border-black/10 bg-white transition hover:bg-black/5"
               aria-label="العودة للمنتجات"
             >
@@ -167,7 +192,11 @@ export default function NewProductPage() {
           </div>
 
           <Link
-            href="/admin/products"
+            href={
+              lockedCategory
+                ? `/admin/products?category=${encodeURIComponent(lockedCategory.trim())}`
+                : "/admin/products"
+            }
             className="hidden items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold transition hover:bg-black/5 sm:flex"
           >
             <X size={18} />
@@ -233,25 +262,30 @@ export default function NewProductPage() {
                     القسم
                   </label>
 
-                  <select
-                    value={form.category}
-                    onChange={(e) =>
-                      handleChange(
-                        "category",
-                        e.target.value
-                      )
-                    }
-                    className="h-12 w-full rounded-xl border border-black/10 bg-[#faf9f7] px-4 text-sm outline-none transition focus:border-[#b89b72] focus:ring-2 focus:ring-[#b89b72]/15"
-                  >
-                    {categories.map((category) => (
-                      <option
-                        key={category}
-                        value={category}
-                      >
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                  {isCategoryLocked && lockedCategory ? (
+                    <div className="flex min-h-12 items-center justify-between rounded-xl border border-[#b89b72]/40 bg-[#b89b72]/10 px-4 py-3">
+                      <span className="text-sm font-semibold">
+                        {lockedCategory.trim()}
+                      </span>
+                      <span className="rounded-full bg-[#b89b72]/20 px-2.5 py-1 text-xs font-medium text-[#765d3d]">
+                        قسم محدد
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={form.category}
+                      onChange={(e) =>
+                        handleChange("category", e.target.value)
+                      }
+                      className="h-12 w-full rounded-xl border border-black/10 bg-[#faf9f7] px-4 text-sm outline-none transition focus:border-[#b89b72] focus:ring-2 focus:ring-[#b89b72]/15"
+                    >
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category.trim()}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Price + Stock */}
@@ -470,7 +504,11 @@ export default function NewProductPage() {
           {/* Bottom Actions */}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Link
-              href="/admin/products"
+              href={
+                lockedCategory
+                  ? `/admin/products?category=${encodeURIComponent(lockedCategory.trim())}`
+                  : "/admin/products"
+              }
               className="flex h-12 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-6 text-sm font-semibold transition hover:bg-black/5"
             >
               <X size={18} />
