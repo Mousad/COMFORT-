@@ -21,7 +21,7 @@ import {
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 type ProductStatus = "available" | "low" | "out";
 
 type Product = {
